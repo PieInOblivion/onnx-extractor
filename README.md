@@ -4,12 +4,11 @@
 
  ## Quick start
 
- ```rust,no_run
+ ```rust
  use onnx_extractor::OnnxModel;
 
  let model = OnnxModel::load_from_file("model.onnx")?;
  model.print_summary();
- # Ok::<(), Box<dyn std::error::Error>>(())
  ```
 
  ## About the protobuf (`onnx.proto`)
