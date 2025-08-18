@@ -1,19 +1,19 @@
+use std::env;
 use std::path::Path;
 use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let proto_path = Path::new("onnx.proto");
+    let out_dir = env::var("OUT_DIR")?;
+    let proto_path = Path::new(&out_dir).join("onnx.proto");
 
-    // download onnx.proto if it doesn't exist
+    // download onnx.proto if it doesn't exist in OUT_DIR
     if !proto_path.exists() {
-        println!("cargo:warning=Downloading onnx.proto...");
-
         let output = Command::new("curl")
             .arg("-L") // follow redirects
             .arg("-s") // silent
             .arg("-f") // fail on http errors
             .arg("-o")
-            .arg(proto_path)
+            .arg(&proto_path)
             .arg("https://raw.githubusercontent.com/onnx/onnx/main/onnx/onnx.proto")
             .output()?;
 
@@ -24,17 +24,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .into());
         }
-
-        println!("cargo:warning=Successfully downloaded onnx.proto");
     }
 
     // compile the protobuf
     prost_build::Config::new()
         .bytes(["."])
-        .compile_protos(&["onnx.proto"], &["."])?;
-
-    println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=onnx.proto");
+        .compile_protos(&[&proto_path], &[&out_dir])?;
 
     Ok(())
 }
