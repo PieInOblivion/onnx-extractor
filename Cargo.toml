@@ -4,7 +4,6 @@ version = "0.0.1"
 edition = "2024"
 authors = ["PieInOblivion"]
 license = "MIT"
-license-file = "LICENSE"
 description = "Lightweight ONNX model parser for extracting tensor shapes, operations, and data"
 repository = "https://github.com/PieInOblivion/onnx-extract"
 keywords = ["onnx", "machine-learning", "tensor", "parser", "model"]
