@@ -1,4 +1,4 @@
-use crate::{DataType, Error, Result, TensorProto, tensor_shape_proto, type_proto};
+use crate::{DataType, Error, TensorProto, tensor_shape_proto, type_proto};
 
 /// Information about an ONNX tensor
 #[derive(Debug, Clone)]
@@ -11,12 +11,12 @@ pub struct TensorInfo {
 
 impl TensorInfo {
     /// Create TensorInfo from ONNX TensorProto
-    pub fn from_tensor_proto(tensor: &TensorProto) -> Result<Self> {
+    pub(crate) fn from_tensor_proto(tensor: &TensorProto) -> Result<Self, Error> {
         crate::proto_adapter::tensor_from_proto(tensor)
     }
 
     /// Create TensorInfo from tensor type (for inputs/outputs/value_info)
-    pub fn from_tensor_type(name: String, tensor_type: &type_proto::Tensor) -> Self {
+    pub(crate) fn from_tensor_type(name: String, tensor_type: &type_proto::Tensor) -> Self {
         let shape = if let Some(shape_proto) = &tensor_type.shape {
             shape_proto
                 .dim
@@ -39,7 +39,7 @@ impl TensorInfo {
     }
 
     /// Get the raw tensor data bytes (if present)
-    pub fn get_raw_data(&self) -> Result<Vec<u8>> {
+    pub fn get_raw_data(&self) -> Result<Vec<u8>, Error> {
         if let Some(data) = &self.data {
             Ok(data.clone())
         } else {
@@ -48,7 +48,7 @@ impl TensorInfo {
     }
 
     /// Get tensor data as f32 array
-    pub fn get_f32_data(&self) -> Result<Vec<f32>> {
+    pub fn get_f32_data(&self) -> Result<Vec<f32>, Error> {
         match self.data_type {
             DataType::Float32 => {
                 if let Some(bytes) = &self.data {
@@ -68,7 +68,7 @@ impl TensorInfo {
     }
 
     /// Get tensor data as i32 array
-    pub fn get_i32_data(&self) -> Result<Vec<i32>> {
+    pub fn get_i32_data(&self) -> Result<Vec<i32>, Error> {
         match self.data_type {
             DataType::Int32 => {
                 if let Some(bytes) = &self.data {
@@ -88,7 +88,7 @@ impl TensorInfo {
     }
 
     /// Get tensor data as i64 array
-    pub fn get_i64_data(&self) -> Result<Vec<i64>> {
+    pub fn get_i64_data(&self) -> Result<Vec<i64>, Error> {
         match self.data_type {
             DataType::Int64 => {
                 if let Some(bytes) = &self.data {

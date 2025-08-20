@@ -39,7 +39,7 @@ pub mod operation;
 pub mod tensor;
 pub mod types;
 
-pub use error::{Error, Result};
+pub use error::Error;
 pub use model::OnnxModel;
 pub use operation::OperationInfo;
 pub use tensor::TensorInfo;

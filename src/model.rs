@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 
-use crate::{Error, ModelProto, OperationInfo, Result, TensorInfo, type_proto};
+use crate::{Error, ModelProto, OperationInfo, TensorInfo, type_proto};
 
 /// Main ONNX model container
 pub struct OnnxModel {
@@ -18,7 +18,7 @@ pub struct OnnxModel {
 
 impl OnnxModel {
     /// Load ONNX model from file path
-    pub fn load_from_file(path: &str) -> Result<Self> {
+    pub fn load_from_file(path: &str) -> Result<Self, Error> {
         let mut file = File::open(path)?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
@@ -26,7 +26,7 @@ impl OnnxModel {
     }
 
     /// Load ONNX model from byte slice
-    pub fn load_from_bytes(data: &[u8]) -> Result<Self> {
+    pub fn load_from_bytes(data: &[u8]) -> Result<Self, Error> {
         let model = ModelProto::decode(data)?;
         let graph = model
             .graph
@@ -221,7 +221,7 @@ impl OnnxModel {
     ///
     /// If the graph contains cycles or there are unresolved dependencies,
     /// the function returns an `Error::InvalidModel`.
-    pub fn topological_order(&self) -> Result<Vec<&OperationInfo>> {
+    pub fn topological_order(&self) -> Result<Vec<&OperationInfo>, Error> {
         use std::collections::VecDeque;
 
         let op_count = self.operations.len();
@@ -316,7 +316,7 @@ impl OnnxModel {
     ///
     /// If the graph contains cycles or there are unresolved dependencies,
     /// the function returns an `Error::InvalidModel`.
-    pub fn execution_order(&self) -> Result<Vec<&OperationInfo>> {
+    pub fn execution_order(&self) -> Result<Vec<&OperationInfo>, Error> {
         use std::collections::VecDeque;
 
         let op_count = self.operations.len();

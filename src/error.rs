@@ -64,6 +64,3 @@ impl From<std::num::TryFromIntError> for Error {
         Error::InvalidModel(format!("Integer conversion error: {}", err))
     }
 }
-
-/// Convenience type alias for Result with our Error type
-pub type Result<T> = std::result::Result<T, Error>;

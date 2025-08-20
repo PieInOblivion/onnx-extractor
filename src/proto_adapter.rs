@@ -1,11 +1,11 @@
-use crate::{AttributeProto, AttributeValue, Error, NodeProto, Result, TensorInfo, TensorProto};
+use crate::{AttributeProto, AttributeValue, Error, NodeProto, TensorInfo, TensorProto};
 use std::collections::HashMap;
 
 /// Centralised adapter functions that translate generated protobuf types into
 /// crate-native types. Keep all direct proto-field usage here so future changes
 /// to `onnx.proto` need only update this file.
 /// Create TensorInfo from ONNX TensorProto
-pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo> {
+pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo, Error> {
     let shape: Vec<i64> = tensor.dims.clone();
     let data_type = crate::DataType::from_onnx_type(tensor.data_type.unwrap_or(0));
 
@@ -62,7 +62,7 @@ pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo> {
 }
 
 /// Create OperationInfo from ONNX NodeProto
-pub(crate) fn operation_from_node_proto(node: &NodeProto) -> Result<crate::OperationInfo> {
+pub(crate) fn operation_from_node_proto(node: &NodeProto) -> Result<crate::OperationInfo, Error> {
     let mut attributes = HashMap::new();
 
     for attr in &node.attribute {
@@ -83,7 +83,7 @@ pub(crate) fn operation_from_node_proto(node: &NodeProto) -> Result<crate::Opera
 }
 
 /// Parse ONNX attribute into AttributeValue
-pub(crate) fn parse_attribute_proto(attr: &AttributeProto) -> Result<AttributeValue> {
+pub(crate) fn parse_attribute_proto(attr: &AttributeProto) -> Result<AttributeValue, Error> {
     let attr_type = attr.r#type.unwrap_or(0);
     match attr_type {
         1 => Ok(AttributeValue::Float(attr.f.unwrap_or(0.0))),
@@ -104,7 +104,7 @@ pub(crate) fn parse_attribute_proto(attr: &AttributeProto) -> Result<AttributeVa
         7 => Ok(AttributeValue::Ints(attr.ints.clone())),
         8 => {
             let strings_bytes = attr.strings.clone();
-            let strings: Result<Vec<String>> = strings_bytes
+            let strings: Result<Vec<String>, Error> = strings_bytes
                 .iter()
                 .map(|s| String::from_utf8(s.to_vec()).map_err(Error::from))
                 .collect();
