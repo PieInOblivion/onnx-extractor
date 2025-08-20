@@ -1,4 +1,4 @@
-use crate::{AttributeProto, AttributeValue, Error, NodeProto, TensorInfo, TensorProto};
+use crate::{AttributeProto, AttributeValue, DataType, Error, NodeProto, TensorInfo, TensorProto};
 use std::collections::HashMap;
 
 /// Centralised adapter functions that translate generated protobuf types into
@@ -25,63 +25,58 @@ pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo, Erro
 }
 
 fn extract_typed_data(tensor: &TensorProto) -> Option<Vec<u8>> {
-    // Check all the typed data fields in TensorProto
-    if !tensor.float_data.is_empty() {
-        return Some(
-            tensor
-                .float_data
-                .iter()
-                .flat_map(|&x| x.to_le_bytes())
-                .collect(),
-        );
+    let data_type =
+        DataType::try_from(tensor.data_type.unwrap_or(0)).unwrap_or(DataType::Undefined);
+
+    macro_rules! numeric {
+        ($field:expr) => {
+            if $field.is_empty() {
+                None
+            } else {
+                Some($field.iter().flat_map(|&x| x.to_le_bytes()).collect())
+            }
+        };
     }
-    if !tensor.double_data.is_empty() {
-        return Some(
-            tensor
-                .double_data
-                .iter()
-                .flat_map(|&x| x.to_le_bytes())
-                .collect(),
-        );
+
+    macro_rules! strings {
+        ($field:expr) => {
+            if $field.is_empty() {
+                None
+            } else {
+                Some($field.iter().flat_map(|s| s.iter().copied()).collect())
+            }
+        };
     }
-    if !tensor.int32_data.is_empty() {
-        return Some(
-            tensor
-                .int32_data
-                .iter()
-                .flat_map(|&x| x.to_le_bytes())
-                .collect(),
-        );
+
+    match data_type {
+        DataType::Float | DataType::Complex64 => numeric!(tensor.float_data),
+        DataType::Double | DataType::Complex128 => numeric!(tensor.double_data),
+        DataType::Int32
+        | DataType::Int16
+        | DataType::Int8
+        | DataType::Int4
+        | DataType::Uint16
+        | DataType::Uint8
+        | DataType::Uint4
+        | DataType::Bool
+        | DataType::Float16
+        | DataType::Bfloat16
+        | DataType::Float8e4m3fn
+        | DataType::Float8e4m3fnuz
+        | DataType::Float8e5m2
+        | DataType::Float8e5m2fnuz
+        | DataType::Float8e8m0
+        | DataType::Float4e2m1 => numeric!(tensor.int32_data),
+        DataType::Int64 => numeric!(tensor.int64_data),
+        DataType::Uint32 | DataType::Uint64 => numeric!(tensor.uint64_data),
+        DataType::String => strings!(tensor.string_data),
+        DataType::Undefined => numeric!(tensor.float_data)
+            .or_else(|| numeric!(tensor.double_data))
+            .or_else(|| numeric!(tensor.int32_data))
+            .or_else(|| numeric!(tensor.int64_data))
+            .or_else(|| numeric!(tensor.uint64_data))
+            .or_else(|| strings!(tensor.string_data)),
     }
-    if !tensor.int64_data.is_empty() {
-        return Some(
-            tensor
-                .int64_data
-                .iter()
-                .flat_map(|&x| x.to_le_bytes())
-                .collect(),
-        );
-    }
-    if !tensor.uint64_data.is_empty() {
-        return Some(
-            tensor
-                .uint64_data
-                .iter()
-                .flat_map(|&x| x.to_le_bytes())
-                .collect(),
-        );
-    }
-    if !tensor.string_data.is_empty() {
-        // String data is already bytes
-        return Some(
-            tensor
-                .string_data
-                .iter()
-                .flat_map(|s| s.iter().copied())
-                .collect(),
-        );
-    }
-    None
 }
 
 /// Create OperationInfo from ONNX NodeProto
