@@ -30,12 +30,12 @@ mod onnx_generated {
     include!(concat!(env!("OUT_DIR"), "/onnx.rs"));
 }
 
-pub use onnx_generated::*;
+pub(crate) mod proto_adapter;
+pub(crate) use onnx_generated::*;
 
 pub mod error;
 pub mod model;
 pub mod operation;
-pub mod proto_adapter;
 pub mod tensor;
 pub mod types;
 

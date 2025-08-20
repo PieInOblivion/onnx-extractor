@@ -5,7 +5,7 @@ use std::collections::HashMap;
 /// crate-native types. Keep all direct proto-field usage here so future changes
 /// to `onnx.proto` need only update this file.
 /// Create TensorInfo from ONNX TensorProto
-pub fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo> {
+pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo> {
     let shape: Vec<i64> = tensor.dims.clone();
     let data_type = crate::DataType::from_onnx_type(tensor.data_type.unwrap_or(0));
 
@@ -62,7 +62,7 @@ pub fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo> {
 }
 
 /// Create OperationInfo from ONNX NodeProto
-pub fn operation_from_node_proto(node: &NodeProto) -> Result<crate::OperationInfo> {
+pub(crate) fn operation_from_node_proto(node: &NodeProto) -> Result<crate::OperationInfo> {
     let mut attributes = HashMap::new();
 
     for attr in &node.attribute {
@@ -83,7 +83,7 @@ pub fn operation_from_node_proto(node: &NodeProto) -> Result<crate::OperationInf
 }
 
 /// Parse ONNX attribute into AttributeValue
-pub fn parse_attribute_proto(attr: &AttributeProto) -> Result<AttributeValue> {
+pub(crate) fn parse_attribute_proto(attr: &AttributeProto) -> Result<AttributeValue> {
     let attr_type = attr.r#type.unwrap_or(0);
     match attr_type {
         1 => Ok(AttributeValue::Float(attr.f.unwrap_or(0.0))),
