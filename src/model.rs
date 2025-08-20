@@ -53,12 +53,25 @@ impl OnnxModel {
         onnx_model.inputs.reserve(graph.input.len());
         onnx_model.outputs.reserve(graph.output.len());
 
-        // extract input/output names
-        for input in &graph.input {
-            onnx_model
-                .inputs
-                .push(input.name.clone().unwrap_or_default());
+        // collect initialiser names first
+        let mut initializer_names = std::collections::HashSet::new();
+        for tensor in &graph.initializer {
+            if let Some(name) = &tensor.name {
+                if !name.is_empty() {
+                    initializer_names.insert(name.as_str());
+                }
+            }
         }
+
+        // extract input names (excluding initialisers)
+        for input in &graph.input {
+            let name = input.name.clone().unwrap_or_default();
+            if !name.is_empty() && !initializer_names.contains(name.as_str()) {
+                onnx_model.inputs.push(name);
+            }
+        }
+
+        // extract output names
         for output in &graph.output {
             onnx_model
                 .outputs
@@ -188,7 +201,7 @@ impl OnnxModel {
             .collect()
     }
 
-    /// Get tensors with data (initializers/weights)
+    /// Get tensors with data (initialisers/weights)
     pub fn get_weight_tensors(&self) -> Vec<&TensorInfo> {
         self.tensors
             .values()
