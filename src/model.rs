@@ -209,12 +209,18 @@ impl OnnxModel {
             .collect()
     }
 
-    /// Return operations in a topologically sorted execution order.
+    /// Return operations in a simple topological order using Kahn's algorithm.
     ///
     /// The returned vector contains references into `self.operations` and
     /// represents an order such that producers appear before their consumers.
-    /// This uses Kahn's algorithm. If the graph contains cycles or there are
-    /// unresolved dependencies the function returns an `Error::InvalidModel`.
+    /// Operations are processed in the order they become available with no
+    /// additional prioritisation.
+    ///
+    /// See also [`execution_order`](Self::execution_order) for a version that
+    /// prioritises operations consuming model inputs.
+    ///
+    /// If the graph contains cycles or there are unresolved dependencies,
+    /// the function returns an `Error::InvalidModel`.
     pub fn topological_order(&self) -> Result<Vec<&OperationInfo>> {
         use std::collections::VecDeque;
 
@@ -239,10 +245,6 @@ impl OnnxModel {
                 }
             }
         }
-
-        // initial available tensors: model inputs and tensors with data (weights)
-        // (we don't need to store them because indegree and producer/consumer
-        // relationships drive the algorithm)
 
         // indegree = number of inputs coming from other ops (i.e. produced by some op)
         let mut indegree: Vec<usize> = vec![0; op_count];
@@ -288,6 +290,137 @@ impl OnnxModel {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        if ordered.len() != op_count {
+            Err(Error::InvalidModel(
+                "Graph has cycles or unresolved dependencies".to_string(),
+            ))
+        } else {
+            Ok(ordered)
+        }
+    }
+
+    /// Return operations in execution-optimised topological order.
+    ///
+    /// The returned vector contains references into `self.operations` and
+    /// represents an order such that producers appear before their consumers.
+    /// Operations that consume model inputs are prioritised over parameter-only
+    /// operations.
+    ///
+    /// This uses Kahn's algorithm with prioritisation. See also
+    /// [`topological_order`](Self::topological_order) for a simple version
+    /// without prioritisation.
+    ///
+    /// If the graph contains cycles or there are unresolved dependencies,
+    /// the function returns an `Error::InvalidModel`.
+    pub fn execution_order(&self) -> Result<Vec<&OperationInfo>> {
+        use std::collections::VecDeque;
+
+        let op_count = self.operations.len();
+
+        // map tensor name -> producer op index
+        let mut producer: HashMap<&str, usize> = HashMap::new();
+        for (idx, op) in self.operations.iter().enumerate() {
+            for out in &op.outputs {
+                if !out.is_empty() {
+                    producer.entry(out.as_str()).or_insert(idx);
+                }
+            }
+        }
+
+        // map tensor name -> list of consumer op indices
+        let mut consumers: HashMap<&str, Vec<usize>> = HashMap::new();
+        for (idx, op) in self.operations.iter().enumerate() {
+            for input in &op.inputs {
+                if !input.is_empty() {
+                    consumers.entry(input.as_str()).or_default().push(idx);
+                }
+            }
+        }
+
+        // indegree = number of inputs coming from other ops
+        let mut indegree: Vec<usize> = vec![0; op_count];
+        for (idx, op) in self.operations.iter().enumerate() {
+            let mut count = 0usize;
+            for input in &op.inputs {
+                if input.is_empty() {
+                    continue;
+                }
+                if producer.contains_key(input.as_str()) {
+                    count += 1;
+                }
+            }
+            indegree[idx] = count;
+        }
+
+        // start with ops that have indegree 0, prioritizing those that consume model inputs
+        let mut queue: VecDeque<usize> = VecDeque::new();
+        let mut ready_ops: Vec<usize> = Vec::new();
+
+        for (idx, &d) in indegree.iter().enumerate() {
+            if d == 0 {
+                ready_ops.push(idx);
+            }
+        }
+
+        // sort ready ops: input consumers first, then parameter-only ops
+        ready_ops.sort_by_key(|&idx| {
+            let op = &self.operations[idx];
+            let consumes_input = op.inputs.iter().any(|input| self.inputs.contains(input));
+            !consumes_input // false sorts before true, so input consumers come first
+        });
+
+        for idx in ready_ops {
+            queue.push_back(idx);
+        }
+
+        let mut ordered: Vec<&OperationInfo> = Vec::with_capacity(op_count);
+
+        while let Some(idx) = queue.pop_front() {
+            let op = &self.operations[idx];
+            ordered.push(op);
+
+            // collect newly ready operations
+            let mut newly_ready: Vec<usize> = Vec::new();
+
+            for out in &op.outputs {
+                if out.is_empty() {
+                    continue;
+                }
+                if let Some(cons_list) = consumers.get(out.as_str()) {
+                    for &cidx in cons_list {
+                        if indegree[cidx] > 0 {
+                            indegree[cidx] -= 1;
+                            if indegree[cidx] == 0 {
+                                newly_ready.push(cidx);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // sort newly ready ops: input consumers first
+            newly_ready.sort_by_key(|&idx| {
+                let op = &self.operations[idx];
+                let consumes_input = op.inputs.iter().any(|input| self.inputs.contains(input));
+                !consumes_input
+            });
+
+            // add to front of queue (input consumers) or back (parameter ops)
+            for cidx in newly_ready {
+                let consumer_op = &self.operations[cidx];
+                let consumes_input = consumer_op
+                    .inputs
+                    .iter()
+                    .any(|input| self.inputs.contains(input));
+
+                if consumes_input {
+                    queue.push_front(cidx);
+                } else {
+                    queue.push_back(cidx);
                 }
             }
         }
