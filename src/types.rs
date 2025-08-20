@@ -1,61 +1,30 @@
 use crate::tensor::TensorInfo;
 
-/// ONNX tensor data types
-#[derive(Debug, Clone, PartialEq)]
-pub enum DataType {
-    Float32,
-    Uint8,
-    Int8,
-    Uint16,
-    Int16,
-    Int32,
-    Int64,
-    String,
-    Bool,
-    Float16,
-    Float64,
-    Uint32,
-    Uint64,
-    Complex64,
-    Complex128,
-    BFloat16,
-    Unknown(i32),
-}
+pub use crate::tensor_proto::DataType;
 
+/// ONNX tensor data types
 impl DataType {
     /// Create DataType from ONNX type integer
     pub fn from_onnx_type(data_type: i32) -> Self {
-        match data_type {
-            1 => DataType::Float32,
-            2 => DataType::Uint8,
-            3 => DataType::Int8,
-            4 => DataType::Uint16,
-            5 => DataType::Int16,
-            6 => DataType::Int32,
-            7 => DataType::Int64,
-            8 => DataType::String,
-            9 => DataType::Bool,
-            10 => DataType::Float16,
-            11 => DataType::Float64,
-            12 => DataType::Uint32,
-            13 => DataType::Uint64,
-            14 => DataType::Complex64,
-            15 => DataType::Complex128,
-            16 => DataType::BFloat16,
-            _ => DataType::Unknown(data_type),
-        }
+        Self::try_from(data_type).unwrap_or(Self::Undefined)
     }
 
     /// Get the size in bytes for numeric types
     pub fn size_in_bytes(&self) -> Option<usize> {
         match self {
-            DataType::Float32 | DataType::Int32 | DataType::Uint32 => Some(4),
-            DataType::Float64 | DataType::Int64 | DataType::Uint64 => Some(8),
-            DataType::Float16 | DataType::BFloat16 | DataType::Int16 | DataType::Uint16 => Some(2),
+            DataType::Float | DataType::Int32 | DataType::Uint32 => Some(4),
+            DataType::Double | DataType::Int64 | DataType::Uint64 => Some(8),
+            DataType::Float16 | DataType::Bfloat16 | DataType::Int16 | DataType::Uint16 => Some(2),
             DataType::Int8 | DataType::Uint8 | DataType::Bool => Some(1),
             DataType::Complex64 => Some(8),
             DataType::Complex128 => Some(16),
-            DataType::String | DataType::Unknown(_) => None,
+            DataType::Float8e4m3fn
+            | DataType::Float8e4m3fnuz
+            | DataType::Float8e5m2
+            | DataType::Float8e5m2fnuz
+            | DataType::Float8e8m0 => Some(1),
+            DataType::Uint4 | DataType::Int4 | DataType::Float4e2m1 => Some(1),
+            DataType::String | DataType::Undefined => None,
         }
     }
 
@@ -63,7 +32,16 @@ impl DataType {
     pub fn is_float(&self) -> bool {
         matches!(
             self,
-            DataType::Float16 | DataType::Float32 | DataType::Float64 | DataType::BFloat16
+            DataType::Float16
+                | DataType::Float
+                | DataType::Double
+                | DataType::Bfloat16
+                | DataType::Float8e4m3fn
+                | DataType::Float8e4m3fnuz
+                | DataType::Float8e5m2
+                | DataType::Float8e5m2fnuz
+                | DataType::Float8e8m0
+                | DataType::Float4e2m1
         )
     }
 
@@ -79,6 +57,8 @@ impl DataType {
                 | DataType::Uint16
                 | DataType::Uint32
                 | DataType::Uint64
+                | DataType::Uint4
+                | DataType::Int4
         )
     }
 }

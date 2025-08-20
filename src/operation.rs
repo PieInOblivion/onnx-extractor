@@ -13,7 +13,7 @@ pub struct OperationInfo {
 
 impl OperationInfo {
     /// Create OperationInfo from ONNX NodeProto
-     pub(crate) fn from_node_proto(node: &NodeProto) -> Result<Self, Error> {
+    pub(crate) fn from_node_proto(node: &NodeProto) -> Result<Self, Error> {
         crate::proto_adapter::operation_from_node_proto(node)
     }
 

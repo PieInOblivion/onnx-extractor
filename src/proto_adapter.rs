@@ -9,48 +9,11 @@ pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo, Erro
     let shape: Vec<i64> = tensor.dims.clone();
     let data_type = crate::DataType::from_onnx_type(tensor.data_type.unwrap_or(0));
 
-    // extract raw tensor data
-    let data = if let Some(raw_data) = &tensor.raw_data {
-        if !raw_data.is_empty() {
-            Some(raw_data.to_vec())
-        } else {
-            None
-        }
+    // Try raw_data first, then fall back to typed data fields
+    let data = if tensor.raw_data.as_ref().map_or(true, |d| d.is_empty()) {
+        extract_typed_data(tensor)
     } else {
-        // handle different data type fields
-        match data_type {
-            crate::DataType::Float32 => {
-                let float_data = tensor.float_data.clone();
-                if !float_data.is_empty() {
-                    let byte_data: Vec<u8> =
-                        float_data.iter().flat_map(|&f| f.to_le_bytes()).collect();
-                    Some(byte_data)
-                } else {
-                    None
-                }
-            }
-            crate::DataType::Int32 => {
-                let int_data = tensor.int32_data.clone();
-                if !int_data.is_empty() {
-                    let byte_data: Vec<u8> =
-                        int_data.iter().flat_map(|&i| i.to_le_bytes()).collect();
-                    Some(byte_data)
-                } else {
-                    None
-                }
-            }
-            crate::DataType::Int64 => {
-                let int64_data = tensor.int64_data.clone();
-                if !int64_data.is_empty() {
-                    let byte_data: Vec<u8> =
-                        int64_data.iter().flat_map(|&i| i.to_le_bytes()).collect();
-                    Some(byte_data)
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
+        Some(tensor.raw_data.as_ref().unwrap().to_vec())
     };
 
     Ok(TensorInfo {
@@ -59,6 +22,66 @@ pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo, Erro
         data_type,
         data,
     })
+}
+
+fn extract_typed_data(tensor: &TensorProto) -> Option<Vec<u8>> {
+    // Check all the typed data fields in TensorProto
+    if !tensor.float_data.is_empty() {
+        return Some(
+            tensor
+                .float_data
+                .iter()
+                .flat_map(|&x| x.to_le_bytes())
+                .collect(),
+        );
+    }
+    if !tensor.double_data.is_empty() {
+        return Some(
+            tensor
+                .double_data
+                .iter()
+                .flat_map(|&x| x.to_le_bytes())
+                .collect(),
+        );
+    }
+    if !tensor.int32_data.is_empty() {
+        return Some(
+            tensor
+                .int32_data
+                .iter()
+                .flat_map(|&x| x.to_le_bytes())
+                .collect(),
+        );
+    }
+    if !tensor.int64_data.is_empty() {
+        return Some(
+            tensor
+                .int64_data
+                .iter()
+                .flat_map(|&x| x.to_le_bytes())
+                .collect(),
+        );
+    }
+    if !tensor.uint64_data.is_empty() {
+        return Some(
+            tensor
+                .uint64_data
+                .iter()
+                .flat_map(|&x| x.to_le_bytes())
+                .collect(),
+        );
+    }
+    if !tensor.string_data.is_empty() {
+        // String data is already bytes
+        return Some(
+            tensor
+                .string_data
+                .iter()
+                .flat_map(|s| s.iter().copied())
+                .collect(),
+        );
+    }
+    None
 }
 
 /// Create OperationInfo from ONNX NodeProto

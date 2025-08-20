@@ -47,69 +47,34 @@ impl TensorInfo {
         }
     }
 
-    /// Get tensor data as f32 array
-    pub fn get_f32_data(&self) -> Result<Vec<f32>, Error> {
-        match self.data_type {
-            DataType::Float32 => {
-                if let Some(bytes) = &self.data {
-                    Ok(bytes
-                        .chunks_exact(4)
-                        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-                        .collect())
-                } else {
-                    Err(Error::MissingField("tensor data".to_string()))
-                }
-            }
-            _ => Err(Error::InvalidModel(format!(
-                "Cannot convert {:?} to f32",
-                self.data_type
-            ))),
-        }
-    }
+    /// Extract tensor data as a typed array.
+    ///
+    /// This method interprets the raw tensor bytes as the specified type `T`.
+    /// The tensor data is assumed to be stored in little-endian format as per
+    /// the ONNX specification.
+    pub fn get_data<T: Copy>(&self) -> std::result::Result<Vec<T>, Error> {
+        let raw = self.get_raw_data()?;
+        let type_size = std::mem::size_of::<T>();
 
-    /// Get tensor data as i32 array
-    pub fn get_i32_data(&self) -> Result<Vec<i32>, Error> {
-        match self.data_type {
-            DataType::Int32 => {
-                if let Some(bytes) = &self.data {
-                    Ok(bytes
-                        .chunks_exact(4)
-                        .map(|chunk| i32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-                        .collect())
-                } else {
-                    Err(Error::MissingField("tensor data".to_string()))
-                }
-            }
-            _ => Err(Error::InvalidModel(format!(
-                "Cannot convert {:?} to i32",
-                self.data_type
-            ))),
+        if raw.len() % type_size != 0 {
+            return Err(Error::DataConversion(format!(
+                "Data size {} is not aligned to type size {} (type: {})",
+                raw.len(),
+                type_size,
+                std::any::type_name::<T>()
+            )));
         }
-    }
 
-    /// Get tensor data as i64 array
-    pub fn get_i64_data(&self) -> Result<Vec<i64>, Error> {
-        match self.data_type {
-            DataType::Int64 => {
-                if let Some(bytes) = &self.data {
-                    Ok(bytes
-                        .chunks_exact(8)
-                        .map(|chunk| {
-                            i64::from_le_bytes([
-                                chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5],
-                                chunk[6], chunk[7],
-                            ])
-                        })
-                        .collect())
-                } else {
-                    Err(Error::MissingField("tensor data".to_string()))
-                }
+        let mut result = Vec::with_capacity(raw.len() / type_size);
+        for chunk in raw.chunks_exact(type_size) {
+            // SAFETY: We know chunk has exactly type_size bytes
+            // ONNX guarantees little-endian format matches most platforms
+            unsafe {
+                let value: T = std::ptr::read(chunk.as_ptr() as *const T);
+                result.push(value);
             }
-            _ => Err(Error::InvalidModel(format!(
-                "Cannot convert {:?} to i64",
-                self.data_type
-            ))),
         }
+        Ok(result)
     }
 
     /// Get the total number of elements in the tensor
