@@ -54,8 +54,7 @@ impl TensorInfo {
     /// the ONNX specification.
     ///
     /// **Note**: This function assumes a little-endian platform. Multi-byte types
-    /// (u16, i16, u32, i32, u64, i64, f32, f64) may return incorrect values on
-    /// big-endian platforms.
+    /// (e.g., f32, i32, u64) may return incorrect values on big-endian platforms.
     pub fn get_data<T: Copy>(&self) -> std::result::Result<Vec<T>, Error> {
         let raw = self.get_raw_data()?;
         let type_size = std::mem::size_of::<T>();
