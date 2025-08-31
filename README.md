@@ -131,6 +131,12 @@ Notes:
 - If the build fails because `curl` is missing, either install `curl` or place `onnx.proto` at the repository root to avoid the download step.
 - If you prefer to avoid code generation at build time, you can vendor the generated `onnx.rs` into `src/` and change `include!` accordingly.
 
+## Platform Notes
+
+- `get_data<T>()` assumes little-endian platforms (most common: x86, x64, ARM)
+- Raw tensor data follows ONNX specification (IEEE 754 for floats, little-endian integers)
+- Multi-byte types may return incorrect values on big-endian platforms
+
 ## License
 
 MIT
