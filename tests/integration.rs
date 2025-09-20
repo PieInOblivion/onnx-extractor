@@ -113,8 +113,6 @@ fn test_get_raw_data() {
     );
 
     let first = weights[0];
-    let raw = first
-        .get_raw_data()
-        .expect("get_raw_data should return bytes");
+    let raw = first.bytes().expect("get_raw_data should return bytes");
     assert!(!raw.is_empty(), "raw data should be non-empty");
 }

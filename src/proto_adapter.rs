@@ -1,4 +1,7 @@
-use crate::{AttributeProto, AttributeValue, DataType, Error, NodeProto, TensorInfo, TensorProto};
+use crate::{
+    AttributeProto, AttributeValue, DataType, Error, NodeProto, OperationInfo, TensorInfo,
+    TensorProto,
+};
 use std::collections::HashMap;
 
 /// Centralised adapter functions that translate generated protobuf types into
@@ -7,10 +10,10 @@ use std::collections::HashMap;
 /// Create TensorInfo from ONNX TensorProto
 pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo, Error> {
     let shape: Vec<i64> = tensor.dims.clone();
-    let data_type = crate::DataType::from_onnx_type(tensor.data_type.unwrap_or(0));
+    let data_type = DataType::from_onnx_type(tensor.data_type.unwrap_or(0));
 
     // Try raw_data first, then fall back to typed data fields
-    let data = if tensor.raw_data.as_ref().map_or(true, |d| d.is_empty()) {
+    let raw_bytes = if tensor.raw_data.as_ref().map_or(true, |d| d.is_empty()) {
         extract_typed_data(tensor)
     } else {
         Some(tensor.raw_data.as_ref().unwrap().to_vec())
@@ -20,7 +23,7 @@ pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo, Erro
         name: tensor.name.clone().unwrap_or_default(),
         shape,
         data_type,
-        data,
+        raw_bytes,
     })
 }
 
@@ -80,7 +83,7 @@ fn extract_typed_data(tensor: &TensorProto) -> Option<Vec<u8>> {
 }
 
 /// Create OperationInfo from ONNX NodeProto
-pub(crate) fn operation_from_node_proto(node: &NodeProto) -> Result<crate::OperationInfo, Error> {
+pub(crate) fn operation_from_node_proto(node: &NodeProto) -> Result<OperationInfo, Error> {
     let mut attributes = HashMap::new();
 
     for attr in &node.attribute {
@@ -91,7 +94,7 @@ pub(crate) fn operation_from_node_proto(node: &NodeProto) -> Result<crate::Opera
         }
     }
 
-    Ok(crate::OperationInfo {
+    Ok(OperationInfo {
         name: node.name.clone().unwrap_or_default(),
         op_type: node.op_type.clone().unwrap_or_default(),
         inputs: node.input.clone(),

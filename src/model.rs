@@ -1,5 +1,5 @@
 use prost::Message;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::Read;
 
@@ -54,7 +54,7 @@ impl OnnxModel {
         onnx_model.outputs.reserve(graph.output.len());
 
         // collect initialiser names first
-        let mut initializer_names = std::collections::HashSet::new();
+        let mut initializer_names = HashSet::new();
         for tensor in &graph.initializer {
             if let Some(name) = &tensor.name {
                 if !name.is_empty() {
@@ -165,7 +165,6 @@ impl OnnxModel {
     pub fn operation_types(&self) -> Vec<String> {
         // collect unique operation types using a hash set of &str to avoid
         // allocating intermediate owned Strings, then sort the resulting Vec
-        use std::collections::HashSet;
         let mut set: HashSet<&str> = HashSet::with_capacity(self.operations.len());
         for op in &self.operations {
             set.insert(op.op_type.as_str());
@@ -222,8 +221,6 @@ impl OnnxModel {
     /// If the graph contains cycles or there are unresolved dependencies,
     /// the function returns an `Error::InvalidModel`.
     pub fn topological_order(&self) -> Result<Vec<&OperationInfo>, Error> {
-        use std::collections::VecDeque;
-
         let op_count = self.operations.len();
 
         // map tensor name -> producer op index
@@ -317,8 +314,6 @@ impl OnnxModel {
     /// If the graph contains cycles or there are unresolved dependencies,
     /// the function returns an `Error::InvalidModel`.
     pub fn execution_order(&self) -> Result<Vec<&OperationInfo>, Error> {
-        use std::collections::VecDeque;
-
         let op_count = self.operations.len();
 
         // map tensor name -> producer op index

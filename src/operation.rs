@@ -1,4 +1,4 @@
-use crate::{AttributeValue, Error, NodeProto};
+use crate::{AttributeValue, Error, NodeProto, proto_adapter};
 use std::collections::HashMap;
 
 /// Information about an ONNX operation/node
@@ -14,7 +14,7 @@ pub struct OperationInfo {
 impl OperationInfo {
     /// Create OperationInfo from ONNX NodeProto
     pub(crate) fn from_node_proto(node: &NodeProto) -> Result<Self, Error> {
-        crate::proto_adapter::operation_from_node_proto(node)
+        proto_adapter::operation_from_node_proto(node)
     }
 
     /// Get attribute by name
