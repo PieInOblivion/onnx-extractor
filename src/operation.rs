@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 /// Information about an ONNX operation/node
 #[derive(Debug, Clone)]
-pub struct OperationInfo {
+pub struct OnnxOperation {
     pub name: String,
     pub op_type: String,
     pub inputs: Vec<String>,
@@ -11,8 +11,8 @@ pub struct OperationInfo {
     pub attributes: HashMap<String, AttributeValue>,
 }
 
-impl OperationInfo {
-    /// Create OperationInfo from ONNX NodeProto
+impl OnnxOperation {
+    /// Create OnnxOperation from ONNX NodeProto
     pub(crate) fn from_node_proto(node: &NodeProto) -> Result<Self, Error> {
         proto_adapter::operation_from_node_proto(node)
     }

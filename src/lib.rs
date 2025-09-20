@@ -41,6 +41,6 @@ pub mod types;
 
 pub use error::Error;
 pub use model::OnnxModel;
-pub use operation::OperationInfo;
-pub use tensor::TensorInfo;
+pub use operation::OnnxOperation;
+pub use tensor::OnnxTensor;
 pub use types::{AttributeValue, DataType};

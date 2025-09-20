@@ -1,5 +1,5 @@
 use crate::{
-    AttributeProto, AttributeValue, DataType, Error, NodeProto, OperationInfo, TensorInfo,
+    AttributeProto, AttributeValue, DataType, Error, NodeProto, OnnxOperation, OnnxTensor,
     TensorProto,
 };
 use std::collections::HashMap;
@@ -7,8 +7,8 @@ use std::collections::HashMap;
 /// Centralised adapter functions that translate generated protobuf types into
 /// crate-native types. Keep all direct proto-field usage here so future changes
 /// to `onnx.proto` need only update this file.
-/// Create TensorInfo from ONNX TensorProto
-pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo, Error> {
+/// Create OnnxTensor from ONNX TensorProto
+pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<OnnxTensor, Error> {
     let shape: Vec<i64> = tensor.dims.clone();
     let data_type = DataType::from_onnx_type(tensor.data_type.unwrap_or(0));
 
@@ -19,7 +19,7 @@ pub(crate) fn tensor_from_proto(tensor: &TensorProto) -> Result<TensorInfo, Erro
         Some(tensor.raw_data.as_ref().unwrap().to_vec())
     };
 
-    Ok(TensorInfo {
+    Ok(OnnxTensor {
         name: tensor.name.clone().unwrap_or_default(),
         shape,
         data_type,
@@ -82,8 +82,8 @@ fn extract_typed_data(tensor: &TensorProto) -> Option<Vec<u8>> {
     }
 }
 
-/// Create OperationInfo from ONNX NodeProto
-pub(crate) fn operation_from_node_proto(node: &NodeProto) -> Result<OperationInfo, Error> {
+/// Create OnnxOperation from ONNX NodeProto
+pub(crate) fn operation_from_node_proto(node: &NodeProto) -> Result<OnnxOperation, Error> {
     let mut attributes = HashMap::new();
 
     for attr in &node.attribute {
@@ -94,7 +94,7 @@ pub(crate) fn operation_from_node_proto(node: &NodeProto) -> Result<OperationInf
         }
     }
 
-    Ok(OperationInfo {
+    Ok(OnnxOperation {
         name: node.name.clone().unwrap_or_default(),
         op_type: node.op_type.clone().unwrap_or_default(),
         inputs: node.input.clone(),

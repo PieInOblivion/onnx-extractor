@@ -3,12 +3,12 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::Read;
 
-use crate::{Error, ModelProto, OperationInfo, TensorInfo, type_proto};
+use crate::{Error, ModelProto, OnnxOperation, OnnxTensor, type_proto};
 
 /// Main ONNX model container
 pub struct OnnxModel {
-    pub tensors: HashMap<String, TensorInfo>,
-    pub operations: Vec<OperationInfo>,
+    pub tensors: HashMap<String, OnnxTensor>,
+    pub operations: Vec<OnnxOperation>,
     pub inputs: Vec<String>,
     pub outputs: Vec<String>,
     pub model_version: i64,
@@ -80,7 +80,7 @@ impl OnnxModel {
 
         // parse initialiser tensors (weights/constants)
         for tensor in &graph.initializer {
-            let tensor_info = TensorInfo::from_tensor_proto(tensor)?;
+            let tensor_info = OnnxTensor::from_tensor_proto(tensor)?;
             let tensor_name = tensor.name.clone().unwrap_or_default();
             if !tensor_name.is_empty() {
                 onnx_model.tensors.insert(tensor_name, tensor_info);
@@ -95,7 +95,7 @@ impl OnnxModel {
             {
                 let name = value_info.name.clone().unwrap_or_default();
                 if !name.is_empty() {
-                    let tensor_info = TensorInfo::from_tensor_type(name.clone(), tensor_type);
+                    let tensor_info = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
                     onnx_model.tensors.insert(name, tensor_info);
                 }
             }
@@ -109,7 +109,7 @@ impl OnnxModel {
             {
                 let name = input.name.clone().unwrap_or_default();
                 if !name.is_empty() {
-                    let tensor_info = TensorInfo::from_tensor_type(name.clone(), tensor_type);
+                    let tensor_info = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
                     onnx_model.tensors.insert(name, tensor_info);
                 }
             }
@@ -123,7 +123,7 @@ impl OnnxModel {
             {
                 let name = output.name.clone().unwrap_or_default();
                 if !name.is_empty() {
-                    let tensor_info = TensorInfo::from_tensor_type(name.clone(), tensor_type);
+                    let tensor_info = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
                     onnx_model.tensors.insert(name, tensor_info);
                 }
             }
@@ -131,7 +131,7 @@ impl OnnxModel {
 
         // parse operations/nodes
         for node in &graph.node {
-            let operation = OperationInfo::from_node_proto(node)?;
+            let operation = OnnxOperation::from_node_proto(node)?;
             onnx_model.operations.push(operation);
         }
 
@@ -139,12 +139,12 @@ impl OnnxModel {
     }
 
     /// Get tensor information by name
-    pub fn get_tensor(&self, name: &str) -> Option<&TensorInfo> {
+    pub fn get_tensor(&self, name: &str) -> Option<&OnnxTensor> {
         self.tensors.get(name)
     }
 
     /// Get all operations of a specific type
-    pub fn get_operations_by_type(&self, op_type: &str) -> Vec<&OperationInfo> {
+    pub fn get_operations_by_type(&self, op_type: &str) -> Vec<&OnnxOperation> {
         self.operations
             .iter()
             .filter(|op| op.op_type == op_type)
@@ -152,7 +152,7 @@ impl OnnxModel {
     }
 
     /// Get operation by name
-    pub fn get_operation(&self, name: &str) -> Option<&OperationInfo> {
+    pub fn get_operation(&self, name: &str) -> Option<&OnnxOperation> {
         self.operations.iter().find(|op| op.name == name)
     }
 
@@ -185,7 +185,7 @@ impl OnnxModel {
     }
 
     /// Get input tensors
-    pub fn get_input_tensors(&self) -> Vec<&TensorInfo> {
+    pub fn get_input_tensors(&self) -> Vec<&OnnxTensor> {
         self.inputs
             .iter()
             .filter_map(|name| self.get_tensor(name))
@@ -193,7 +193,7 @@ impl OnnxModel {
     }
 
     /// Get output tensors
-    pub fn get_output_tensors(&self) -> Vec<&TensorInfo> {
+    pub fn get_output_tensors(&self) -> Vec<&OnnxTensor> {
         self.outputs
             .iter()
             .filter_map(|name| self.get_tensor(name))
@@ -201,7 +201,7 @@ impl OnnxModel {
     }
 
     /// Get tensors with data (initialisers/weights)
-    pub fn get_weight_tensors(&self) -> Vec<&TensorInfo> {
+    pub fn get_weight_tensors(&self) -> Vec<&OnnxTensor> {
         self.tensors
             .values()
             .filter(|tensor| tensor.has_data())
@@ -220,7 +220,7 @@ impl OnnxModel {
     ///
     /// If the graph contains cycles or there are unresolved dependencies,
     /// the function returns an `Error::InvalidModel`.
-    pub fn topological_order(&self) -> Result<Vec<&OperationInfo>, Error> {
+    pub fn topological_order(&self) -> Result<Vec<&OnnxOperation>, Error> {
         let op_count = self.operations.len();
 
         // map tensor name -> producer op index
@@ -266,7 +266,7 @@ impl OnnxModel {
             }
         }
 
-        let mut ordered: Vec<&OperationInfo> = Vec::with_capacity(op_count);
+        let mut ordered: Vec<&OnnxOperation> = Vec::with_capacity(op_count);
 
         while let Some(idx) = queue.pop_front() {
             let op = &self.operations[idx];
@@ -313,7 +313,7 @@ impl OnnxModel {
     ///
     /// If the graph contains cycles or there are unresolved dependencies,
     /// the function returns an `Error::InvalidModel`.
-    pub fn execution_order(&self) -> Result<Vec<&OperationInfo>, Error> {
+    pub fn execution_order(&self) -> Result<Vec<&OnnxOperation>, Error> {
         let op_count = self.operations.len();
 
         // map tensor name -> producer op index
@@ -372,7 +372,7 @@ impl OnnxModel {
             queue.push_back(idx);
         }
 
-        let mut ordered: Vec<&OperationInfo> = Vec::with_capacity(op_count);
+        let mut ordered: Vec<&OnnxOperation> = Vec::with_capacity(op_count);
 
         while let Some(idx) = queue.pop_front() {
             let op = &self.operations[idx];

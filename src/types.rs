@@ -1,4 +1,4 @@
-use crate::tensor::TensorInfo;
+use crate::tensor::OnnxTensor;
 
 pub use crate::tensor_proto::DataType;
 
@@ -69,7 +69,7 @@ pub enum AttributeValue {
     Int(i64),
     Float(f32),
     String(String),
-    Tensor(TensorInfo),
+    Tensor(OnnxTensor),
     Ints(Vec<i64>),
     Floats(Vec<f32>),
     Strings(Vec<String>),
@@ -101,7 +101,7 @@ impl AttributeValue {
     }
 
     /// Try to get tensor value
-    pub fn as_tensor(&self) -> Option<&TensorInfo> {
+    pub fn as_tensor(&self) -> Option<&OnnxTensor> {
         match self {
             AttributeValue::Tensor(t) => Some(t),
             _ => None,

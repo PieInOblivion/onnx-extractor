@@ -7,20 +7,20 @@ use crate::{
 
 /// Information about an ONNX tensor
 #[derive(Debug, Clone)]
-pub struct TensorInfo {
+pub struct OnnxTensor {
     pub name: String,
     pub shape: Vec<i64>,
     pub data_type: DataType,
-    pub raw_bytes: Option<Vec<u8>>, // raw bytes of tensor data
+    pub raw_bytes: Option<Vec<u8>>,
 }
 
-impl TensorInfo {
-    /// Create TensorInfo from ONNX TensorProto
+impl OnnxTensor {
+    /// Create OnnxTensor from ONNX TensorProto
     pub(crate) fn from_tensor_proto(tensor: &TensorProto) -> Result<Self, Error> {
         proto_adapter::tensor_from_proto(tensor)
     }
 
-    /// Create TensorInfo from tensor type (for inputs/outputs/value_info)
+    /// Create OnnxTensor from tensor type (for inputs/outputs/value_info)
     pub(crate) fn from_tensor_type(name: String, tensor_type: &Tensor) -> Self {
         let shape = if let Some(shape_proto) = &tensor_type.shape {
             shape_proto
@@ -35,7 +35,7 @@ impl TensorInfo {
             Vec::new()
         };
 
-        TensorInfo {
+        OnnxTensor {
             name,
             shape,
             data_type: DataType::from_onnx_type(tensor_type.elem_type.unwrap_or(0)),
