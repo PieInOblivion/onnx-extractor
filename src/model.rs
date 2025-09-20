@@ -80,10 +80,10 @@ impl OnnxModel {
 
         // parse initialiser tensors (weights/constants)
         for tensor in &graph.initializer {
-            let tensor_info = OnnxTensor::from_tensor_proto(tensor)?;
+            let onnx_tensor = OnnxTensor::from_tensor_proto(tensor)?;
             let tensor_name = tensor.name.clone().unwrap_or_default();
             if !tensor_name.is_empty() {
-                onnx_model.tensors.insert(tensor_name, tensor_info);
+                onnx_model.tensors.insert(tensor_name, onnx_tensor);
             }
         }
 
@@ -95,8 +95,8 @@ impl OnnxModel {
             {
                 let name = value_info.name.clone().unwrap_or_default();
                 if !name.is_empty() {
-                    let tensor_info = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
-                    onnx_model.tensors.insert(name, tensor_info);
+                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
+                    onnx_model.tensors.insert(name, onnx_tensor);
                 }
             }
         }
@@ -109,8 +109,8 @@ impl OnnxModel {
             {
                 let name = input.name.clone().unwrap_or_default();
                 if !name.is_empty() {
-                    let tensor_info = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
-                    onnx_model.tensors.insert(name, tensor_info);
+                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
+                    onnx_model.tensors.insert(name, onnx_tensor);
                 }
             }
         }
@@ -123,8 +123,8 @@ impl OnnxModel {
             {
                 let name = output.name.clone().unwrap_or_default();
                 if !name.is_empty() {
-                    let tensor_info = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
-                    onnx_model.tensors.insert(name, tensor_info);
+                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
+                    onnx_model.tensors.insert(name, onnx_tensor);
                 }
             }
         }

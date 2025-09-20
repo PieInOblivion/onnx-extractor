@@ -115,8 +115,8 @@ pub(crate) fn parse_attribute_proto(attr: &AttributeProto) -> Result<AttributeVa
         }
         4 => {
             if let Some(tensor) = &attr.t {
-                let tensor_info = tensor_from_proto(tensor)?;
-                Ok(AttributeValue::Tensor(tensor_info))
+                let onnx_tensor = tensor_from_proto(tensor)?;
+                Ok(AttributeValue::Tensor(onnx_tensor))
             } else {
                 Err(Error::MissingField("tensor attribute data".to_string()))
             }
