@@ -116,3 +116,18 @@ fn test_get_raw_data() {
     let raw = first.bytes().expect("get_raw_data should return bytes");
     assert!(!raw.is_empty(), "raw data should be non-empty");
 }
+
+#[test]
+fn test_no_data_tensors_report_no_data() {
+    let path = format!("{}/tests/mnist-12.onnx", env!("CARGO_MANIFEST_DIR"));
+    let model = OnnxModel::load_from_file(&path).expect("Failed to load mnist model");
+
+    let tensor = model
+        .get_tensor("ReLU114_Output_0")
+        .expect("ReLU114_Output_0 tensor should exist");
+
+    assert!(
+        tensor.bytes().is_err(),
+        "ReLU114_Output_0 should not have embedded data and bytes() must error"
+    );
+}
