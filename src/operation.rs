@@ -2,7 +2,7 @@ use crate::{AttributeValue, Error, NodeProto, proto_adapter};
 use std::collections::HashMap;
 
 /// Information about an ONNX operation/node
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct OnnxOperation {
     pub name: String,
     pub op_type: String,
@@ -13,7 +13,7 @@ pub struct OnnxOperation {
 
 impl OnnxOperation {
     /// Create OnnxOperation from ONNX NodeProto
-    pub(crate) fn from_node_proto(node: &NodeProto) -> Result<Self, Error> {
+    pub(crate) fn from_node_proto(node: NodeProto) -> Result<Self, Error> {
         proto_adapter::operation_from_node_proto(node)
     }
 

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::Read;
 
-use crate::{Error, ModelProto, OnnxOperation, OnnxTensor, type_proto};
+use crate::{Error, ModelProto, OnnxOperation, OnnxTensor, proto_adapter, type_proto};
 
 /// Main ONNX model container
 pub struct OnnxModel {
@@ -28,7 +28,7 @@ impl OnnxModel {
     /// Load ONNX model from byte slice
     pub fn load_from_bytes(data: &[u8]) -> Result<Self, Error> {
         let model = ModelProto::decode(data)?;
-        let graph = model
+        let mut graph = model
             .graph
             .ok_or_else(|| Error::InvalidModel("No graph found in model".to_string()))?;
 
@@ -78,10 +78,10 @@ impl OnnxModel {
                 .push(output.name.clone().unwrap_or_default());
         }
 
-        // parse initialiser tensors (weights/constants)
-        for tensor in &graph.initializer {
-            let onnx_tensor = OnnxTensor::from_tensor_proto(tensor)?;
+        // parse initialiser tensors (weights/constants) by draining to avoid clones
+        for tensor in graph.initializer.drain(..) {
             let tensor_name = tensor.name.clone().unwrap_or_default();
+            let onnx_tensor = proto_adapter::tensor_from_proto(tensor)?;
             if !tensor_name.is_empty() {
                 onnx_model.tensors.insert(tensor_name, onnx_tensor);
             }
@@ -95,7 +95,7 @@ impl OnnxModel {
             {
                 let name = value_info.name.clone().unwrap_or_default();
                 if !name.is_empty() {
-                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
+                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
                     onnx_model.tensors.insert(name, onnx_tensor);
                 }
             }
@@ -109,7 +109,7 @@ impl OnnxModel {
             {
                 let name = input.name.clone().unwrap_or_default();
                 if !name.is_empty() {
-                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
+                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
                     onnx_model.tensors.insert(name, onnx_tensor);
                 }
             }
@@ -123,14 +123,14 @@ impl OnnxModel {
             {
                 let name = output.name.clone().unwrap_or_default();
                 if !name.is_empty() {
-                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type);
+                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
                     onnx_model.tensors.insert(name, onnx_tensor);
                 }
             }
         }
 
-        // parse operations/nodes
-        for node in &graph.node {
+        // parse operations/nodes by draining to allow owned conversion
+        for node in graph.node.drain(..) {
             let operation = OnnxOperation::from_node_proto(node)?;
             onnx_model.operations.push(operation);
         }

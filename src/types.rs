@@ -64,7 +64,7 @@ impl DataType {
 }
 
 /// ONNX attribute values
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum AttributeValue {
     Int(i64),
     Float(f32),
