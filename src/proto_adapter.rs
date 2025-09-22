@@ -7,6 +7,11 @@ use std::{collections::HashMap, mem};
 /// Centralised adapter functions that translate generated protobuf types into
 /// crate-native types. Keep all direct proto-field usage here so future changes
 /// to `onnx.proto` need only update this file.
+///
+/// Zero-copy policy: we prefer moving/borrowing from the generated proto
+/// structures. We avoid cloning where `prost` provides owned fields and use
+/// `drain/take` where appropriate.
+///
 /// Create OnnxTensor from ONNX TensorProto
 pub(crate) fn tensor_from_proto(tensor: TensorProto) -> Result<OnnxTensor, Error> {
     let shape: Vec<i64> = tensor.dims.clone();
@@ -38,6 +43,10 @@ pub(crate) fn operation_from_node_proto(mut node: NodeProto) -> Result<OnnxOpera
 }
 
 /// Parse ONNX attribute into AttributeValue
+///
+/// Strings are converted from `prost::bytes::Bytes` to `String` via UTF-8. For
+/// string arrays, we collect all entries; zero-copy is not possible due to the
+/// need to validate UTF-8 and represent as owned `String`.
 pub(crate) fn parse_attribute_proto(mut attr: AttributeProto) -> Result<AttributeValue, Error> {
     let attr_type = attr.r#type.unwrap_or(0);
     match attr_type {

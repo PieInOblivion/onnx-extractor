@@ -121,10 +121,10 @@ impl OnnxTensor {
     /// Consume the tensor and return the owned data as a boxed byte slice.
     ///
     /// Rules for consistency:
-    /// - If raw_data is present, we return a new contiguous Box<[u8]> with its content.
-    /// - For numeric typed fields, we avoid extra copies by reinterpreting the owned Vec<T>
-    ///   into a Vec<u8> using a zero-copy cast and then boxing it.
-    /// - For strings, we concatenate all entries into a single Box<[u8]>.
+    /// - If raw_data is present, we return a new contiguous `Box<[u8]>` with its content.
+    /// - For numeric typed fields, we avoid extra copies by reinterpreting the owned `Vec<T>`
+    ///   into a `Vec<u8>` using a zero-copy cast and then boxing it.
+    /// - For strings, we concatenate all entries into a single `Box<[u8]>`.
     pub fn into_bytes(mut self) -> Result<Box<[u8]>, Error> {
         let t = self
             .proto
@@ -261,7 +261,7 @@ enum StorageBacking {
     Strings,
 }
 
-// map DataType to backing storage if any
+// map DataType to protobuf backing storage if any
 fn storage_backing(dt: DataType) -> Option<StorageBacking> {
     match dt {
         DataType::Float | DataType::Complex64 => Some(StorageBacking::F32),
@@ -289,7 +289,6 @@ fn storage_backing(dt: DataType) -> Option<StorageBacking> {
     }
 }
 
-// concatenate a slice of prost Bytes into a single owned boxed byte slice
 fn concat_strings_to_boxed_bytes(parts: &[Bytes]) -> Box<[u8]> {
     let total: usize = parts.iter().map(|b| b.len()).sum();
     let mut out = Vec::with_capacity(total);
@@ -319,9 +318,9 @@ fn slice_bytes_as<T: Copy>(slice: &[T]) -> &[u8] {
 
 fn into_box<T: Copy>(v: Vec<T>) -> Box<[u8]> {
     let mut v = ManuallyDrop::new(v);
+    let ptr = v.as_mut_ptr() as *mut u8;
     let len = v.len() * mem::size_of::<T>();
     let cap = v.capacity() * mem::size_of::<T>();
-    let ptr = v.as_mut_ptr() as *mut u8;
     let vu8: Vec<u8> = unsafe { Vec::from_raw_parts(ptr, len, cap) };
     vu8.into_boxed_slice()
 }

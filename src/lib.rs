@@ -7,6 +7,13 @@
 //! - Operation details (inputs, outputs, attributes)
 //! - Model structure (inputs, outputs, graph topology)
 //!
+//! Zero-copy: `OnnxTensor::bytes()` borrows directly from the underlying
+//! protobuf storage (`raw_data`, typed data fields). The only exception is
+//! string tensors, where we concatenate entries into a contiguous cached
+//! byte buffer for convenience.
+//!
+//! Endianness: Multi-byte interpretations assume little-endian platforms.
+//!
 //! ## Quick Start
 //!
 //! ```rust,no_run

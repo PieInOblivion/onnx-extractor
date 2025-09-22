@@ -51,15 +51,15 @@ println!("Data type: {:?}", tensor.data_type);
 println!("Element count: {}", tensor.element_count());
 println!("Rank: {}", tensor.rank());
 
-// Data access (get_data assumes little-endian platform)
-let raw_bytes = tensor.get_raw_data()?;
-let float_data: Vec<f32> = tensor.get_data()?;
+// Zero-copy bytes when possible (little-endian)
+let raw_bytes: &[u8] = tensor.bytes()?;             // borrowed; zero-copy where feasible
+let owned_bytes: Box<[u8]> = tensor.clone_bytes()?; // owned copy
 
-// Export as different types with same function
-let as_f32: Vec<f32> = tensor.get_data()?;
-let as_f64: Vec<f64> = tensor.get_data()?;
-let as_i32: Vec<i32> = tensor.get_data()?;
-let as_u8: Vec<u8> = tensor.get_data()?;
+// Copy/interpret into a typed buffer (little-endian)
+let as_f32: Box<[f32]> = tensor.copy_data_as::<f32>()?;
+let as_f64: Box<[f64]> = tensor.copy_data_as::<f64>()?;
+let as_i32: Box<[i32]> = tensor.copy_data_as::<i32>()?;
+let as_u8: Box<[u8]> = tensor.copy_data_as::<u8>()?;
 
 // Properties
 let has_data = tensor.has_data();
@@ -125,6 +125,8 @@ This crate generates Rust types from the ONNX protobuf at build time using `pros
 Notes:
 - The build step requires `curl` (only if `onnx.proto` isn't present) and network access.
 - `prost_build::Config::bytes(["."])` configures `bytes` fields as `prost::bytes::Bytes`; the code converts these to `Vec<u8>` or `String` where needed.
+- Data borrowing is zero-copy for fields like `raw_data`, `float_data`, `double_data`, `int64_data`, `uint64_data`, and `int32_data`.
+- String tensors are concatenated into a cached contiguous buffer for byte access.
 
 ## Troubleshooting
 
@@ -133,8 +135,8 @@ Notes:
 
 ## Platform Notes
 
-- `get_data<T>()` assumes little-endian platforms (most common: x86, x64, ARM)
-- Raw tensor data follows ONNX specification (IEEE 754 for floats, little-endian integers)
+- Byte and typed views assume little-endian platforms (most common: x86, x64, ARM)
+- Raw tensor data follows the ONNX specification (IEEE 754 for floats, little-endian integers)
 - Multi-byte types may return incorrect values on big-endian platforms
 
 ## License
