@@ -81,7 +81,33 @@ impl OnnxTensor {
             .proto
             .as_ref()
             .ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
-        map_as_bytes(t, self.data_type, &self.cached_string_bytes)
+
+        if let Some(raw) = &t.raw_data {
+            if !raw.is_empty() {
+                return Ok(raw.as_ref());
+            }
+        }
+
+        let bytes_opt: Option<&[u8]> = match storage_backing(self.data_type) {
+            Some(StorageBacking::F32) => Some(slice_bytes_as::<f32>(t.float_data.as_slice())),
+            Some(StorageBacking::F64) => Some(slice_bytes_as::<f64>(t.double_data.as_slice())),
+            Some(StorageBacking::I64) => Some(slice_bytes_as::<i64>(t.int64_data.as_slice())),
+            Some(StorageBacking::U64) => Some(slice_bytes_as::<u64>(t.uint64_data.as_slice())),
+            Some(StorageBacking::I32) => Some(slice_bytes_as::<i32>(t.int32_data.as_slice())),
+            Some(StorageBacking::Strings) => {
+                let buf = self
+                    .cached_string_bytes
+                    .get_or_init(|| concat_strings_to_boxed_bytes(&t.string_data));
+                Some(buf.as_ref())
+            }
+            None => None,
+        };
+
+        let bytes = bytes_opt.ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
+        if bytes.is_empty() && self.data_type != DataType::String {
+            return Err(Error::MissingField("tensor data".to_string()));
+        }
+        Ok(bytes)
     }
 
     /// Consume the tensor and return the owned data as a boxed byte slice.
@@ -92,28 +118,39 @@ impl OnnxTensor {
     ///   into a Vec<u8> using a zero-copy cast and then boxing it.
     /// - For strings, we concatenate all entries into a single Box<[u8]>.
     pub fn into_bytes(mut self) -> Result<Box<[u8]>, Error> {
-        // if string tensor and cache exists, move it out with no copy when raw_data is not present
-        if self.data_type == DataType::String {
-            let has_raw = self
-                .proto
-                .as_ref()
-                .and_then(|p| p.raw_data.as_ref())
-                .map(|b| !b.is_empty())
-                .unwrap_or(false);
-            if !has_raw {
-                if let Some(buf) = self.cached_string_bytes.get_mut() {
-                    // take ownership of the cached buffer
-                    let owned = std::mem::take(buf);
-                    return Ok(owned);
-                }
+        let t = self
+            .proto
+            .as_mut()
+            .ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
+
+        if let Some(raw) = t.raw_data.take() {
+            if !raw.is_empty() {
+                return Ok(raw.to_vec().into_boxed_slice());
             }
         }
 
-        let t = self
-            .proto
-            .take()
-            .ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
-        map_into_bytes(t, self.data_type)
+        let bytes_opt: Option<Box<[u8]>> = match storage_backing(self.data_type) {
+            Some(StorageBacking::F32) => Some(into_box::<f32>(mem::take(&mut t.float_data))),
+            Some(StorageBacking::F64) => Some(into_box::<f64>(mem::take(&mut t.double_data))),
+            Some(StorageBacking::I64) => Some(into_box::<i64>(mem::take(&mut t.int64_data))),
+            Some(StorageBacking::U64) => Some(into_box::<u64>(mem::take(&mut t.uint64_data))),
+            Some(StorageBacking::I32) => Some(into_box::<i32>(mem::take(&mut t.int32_data))),
+            Some(StorageBacking::Strings) => {
+                // ensure cache is initialised then move it
+                let _ = self
+                    .cached_string_bytes
+                    .get_or_init(|| concat_strings_to_boxed_bytes(&t.string_data));
+                let taken = mem::take(self.cached_string_bytes.get_mut().unwrap());
+                Some(taken)
+            }
+            None => None,
+        };
+
+        let bytes = bytes_opt.ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
+        if bytes.is_empty() && self.data_type != DataType::String {
+            return Err(Error::MissingField("tensor data".to_string()));
+        }
+        Ok(bytes)
     }
 
     /// Extract tensor data as a new boxed typed slice.
@@ -238,80 +275,20 @@ fn concat_strings_to_boxed_bytes(parts: &[Bytes]) -> Box<[u8]> {
     out.into_boxed_slice()
 }
 
-// borrow underlying data as &[u8]
-fn map_as_bytes<'a>(
-    t: &'a TensorProto,
-    dt: DataType,
-    cache: &'a OnceLock<Box<[u8]>>,
-) -> Result<&'a [u8], Error> {
-    if let Some(raw) = &t.raw_data {
-        if !raw.is_empty() {
-            return Ok(raw.as_ref());
-        }
+fn slice_bytes_as<T: Copy>(slice: &[T]) -> &[u8] {
+    unsafe {
+        slice::from_raw_parts(
+            slice.as_ptr() as *const u8,
+            slice.len() * mem::size_of::<T>(),
+        )
     }
-
-    macro_rules! as_bytes {
-        ($slice:expr, $ty:ty) => {{
-            let s = $slice;
-            unsafe {
-                slice::from_raw_parts(s.as_ptr() as *const u8, s.len() * mem::size_of::<$ty>())
-            }
-        }};
-    }
-
-    let bytes_opt: Option<&[u8]> = match storage_backing(dt) {
-        Some(StorageBacking::F32) => Some(as_bytes!(t.float_data.as_slice(), f32)),
-        Some(StorageBacking::F64) => Some(as_bytes!(t.double_data.as_slice(), f64)),
-        Some(StorageBacking::I64) => Some(as_bytes!(t.int64_data.as_slice(), i64)),
-        Some(StorageBacking::U64) => Some(as_bytes!(t.uint64_data.as_slice(), u64)),
-        Some(StorageBacking::I32) => Some(as_bytes!(t.int32_data.as_slice(), i32)),
-        Some(StorageBacking::Strings) => {
-            let buf = cache.get_or_init(|| concat_strings_to_boxed_bytes(&t.string_data));
-            Some(buf.as_ref())
-        }
-        None => None,
-    };
-
-    let bytes = bytes_opt.ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
-    if bytes.is_empty() && dt != DataType::String {
-        return Err(Error::MissingField("tensor data".to_string()));
-    }
-    Ok(bytes)
 }
 
-// take ownership of underlying data as Box<[u8]>
-fn map_into_bytes(mut t: TensorProto, data_type: DataType) -> Result<Box<[u8]>, Error> {
-    if let Some(raw) = t.raw_data.take() {
-        if !raw.is_empty() {
-            return Ok(raw.to_vec().into_boxed_slice());
-        }
-    }
-
-    macro_rules! take_and_cast_to_box {
-        ($field:ident, $ty:ty) => {{
-            let v: Vec<$ty> = mem::take(&mut t.$field);
-            let mut v = ManuallyDrop::new(v);
-            let len = v.len() * mem::size_of::<$ty>();
-            let cap = v.capacity() * mem::size_of::<$ty>();
-            let ptr = v.as_mut_ptr() as *mut u8;
-            let vu8: Vec<u8> = unsafe { Vec::from_raw_parts(ptr, len, cap) };
-            vu8.into_boxed_slice()
-        }};
-    }
-
-    let bytes_opt: Option<Box<[u8]>> = match storage_backing(data_type) {
-        Some(StorageBacking::F32) => Some(take_and_cast_to_box!(float_data, f32)),
-        Some(StorageBacking::F64) => Some(take_and_cast_to_box!(double_data, f64)),
-        Some(StorageBacking::I64) => Some(take_and_cast_to_box!(int64_data, i64)),
-        Some(StorageBacking::U64) => Some(take_and_cast_to_box!(uint64_data, u64)),
-        Some(StorageBacking::I32) => Some(take_and_cast_to_box!(int32_data, i32)),
-        Some(StorageBacking::Strings) => Some(concat_strings_to_boxed_bytes(&t.string_data)),
-        None => None,
-    };
-
-    let bytes = bytes_opt.ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
-    if bytes.is_empty() && data_type != DataType::String {
-        return Err(Error::MissingField("tensor data".to_string()));
-    }
-    Ok(bytes)
+fn into_box<T: Copy>(v: Vec<T>) -> Box<[u8]> {
+    let mut v = ManuallyDrop::new(v);
+    let len = v.len() * mem::size_of::<T>();
+    let cap = v.capacity() * mem::size_of::<T>();
+    let ptr = v.as_mut_ptr() as *mut u8;
+    let vu8: Vec<u8> = unsafe { Vec::from_raw_parts(ptr, len, cap) };
+    vu8.into_boxed_slice()
 }
