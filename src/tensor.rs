@@ -1,5 +1,5 @@
 use prost::bytes::Bytes;
-use std::mem::ManuallyDrop;
+use std::mem::{ManuallyDrop, MaybeUninit};
 use std::sync::OnceLock;
 use std::{any, mem, ptr, slice};
 
@@ -104,7 +104,15 @@ impl OnnxTensor {
         };
 
         let bytes = bytes_opt.ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
-        if bytes.is_empty() && self.data_type != DataType::String {
+
+        if self.data_type == DataType::String {
+            if t.string_data.is_empty() && self.shape.iter().any(|&d| d != 0) {
+                return Err(Error::MissingField("tensor data".to_string()));
+            }
+            return Ok(bytes);
+        }
+
+        if bytes.is_empty() {
             return Err(Error::MissingField("tensor data".to_string()));
         }
         Ok(bytes)
@@ -147,7 +155,15 @@ impl OnnxTensor {
         };
 
         let bytes = bytes_opt.ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
-        if bytes.is_empty() && self.data_type != DataType::String {
+
+        if self.data_type == DataType::String {
+            if t.string_data.is_empty() && self.shape.iter().any(|&d| d != 0) {
+                return Err(Error::MissingField("tensor data".to_string()));
+            }
+            return Ok(bytes);
+        }
+
+        if bytes.is_empty() {
             return Err(Error::MissingField("tensor data".to_string()));
         }
         Ok(bytes)
@@ -166,6 +182,16 @@ impl OnnxTensor {
         let bytes = self.bytes()?;
         let type_size = mem::size_of::<T>();
 
+        if type_size == 0 {
+            return Err(Error::DataConversion(
+                "Zero-sized element types are not supported".to_string(),
+            ));
+        }
+
+        if bytes.is_empty() {
+            return Ok(Box::from([]));
+        }
+
         if bytes.len() % type_size != 0 {
             return Err(Error::DataConversion(format!(
                 "Data size {} is not aligned to type size {} (type: {})",
@@ -176,18 +202,16 @@ impl OnnxTensor {
         }
 
         let count = bytes.len() / type_size;
-        // allocate exact sized boxed slice
-        let mut out_uninit: Box<[mem::MaybeUninit<T>]> =
-            vec![mem::MaybeUninit::<T>::uninit(); count].into_boxed_slice();
+        let mut v: Vec<MaybeUninit<T>> = Vec::with_capacity(count);
 
-        // fill using unaligned reads to avoid UB if raw_data isn't suitably aligned
-        for (i, chunk) in bytes.chunks_exact(type_size).enumerate() {
-            let value = unsafe { ptr::read_unaligned(chunk.as_ptr() as *const T) };
-            out_uninit[i].write(value);
+        unsafe {
+            v.set_len(count);
+            ptr::copy_nonoverlapping(bytes.as_ptr(), v.as_mut_ptr() as *mut u8, bytes.len());
         }
 
-        // all elements have been initialised
-        let out: Box<[T]> = unsafe { std::mem::transmute(out_uninit) };
+        let out_uninit = v.into_boxed_slice();
+        let out: Box<[T]> = unsafe { mem::transmute(out_uninit) };
+
         Ok(out)
     }
 
@@ -269,9 +293,18 @@ fn storage_backing(dt: DataType) -> Option<StorageBacking> {
 fn concat_strings_to_boxed_bytes(parts: &[Bytes]) -> Box<[u8]> {
     let total: usize = parts.iter().map(|b| b.len()).sum();
     let mut out = Vec::with_capacity(total);
+
+    let mut dst = out.as_mut_ptr();
     for s in parts {
-        out.extend_from_slice(s.as_ref());
+        let len = s.len();
+        if len == 0 {
+            continue;
+        }
+        unsafe { ptr::copy_nonoverlapping(s.as_ptr(), dst, len) };
+        dst = unsafe { dst.add(len) };
     }
+
+    unsafe { out.set_len(total) };
     out.into_boxed_slice()
 }
 
