@@ -124,7 +124,6 @@ This crate generates Rust types from the ONNX protobuf at build time using `pros
 Notes:
 - Data is returned zero-copy for numeric and raw-data fields. String tensors are handled specially by concatenating their bytes into a cached contiguous buffer.
 
-
 ## Platform Notes
 
 - Byte and typed views assume little-endian platforms (most common: x86, x64, ARM)
