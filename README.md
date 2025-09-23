@@ -121,20 +121,9 @@ let is_int = tensor.data_type.is_integer();
 
 This crate generates Rust types from the ONNX protobuf at build time using `prost-build`.
 
-- `build.rs` will download `onnx.proto` from the ONNX repo if the file is missing.
-- `prost-build` compiles the `.proto` into `onnx.rs` under `$OUT_DIR` and the crate includes it with:
-	 `include!(concat!(env!("OUT_DIR"), "/onnx.rs"));`
-
 Notes:
-- The build step requires `curl` (only if `onnx.proto` isn't present) and network access.
-- `prost_build::Config::bytes(["."])` configures `bytes` fields as `prost::bytes::Bytes`; the code converts these to `Vec<u8>` or `String` where needed.
-- Data borrowing is zero-copy for fields like `raw_data`, `float_data`, `double_data`, `int64_data`, `uint64_data`, and `int32_data`.
-- String tensors are concatenated into a cached contiguous buffer for byte access.
+- Data is returned zero-copy for numeric and raw-data fields. String tensors are handled specially by concatenating their bytes into a cached contiguous buffer.
 
-## Troubleshooting
-
-- If the build fails because `curl` is missing, either install `curl` or place `onnx.proto` at the repository root to avoid the download step.
-- If you prefer to avoid code generation at build time, you can vendor the generated `onnx.rs` into `src/` and change `include!` accordingly.
 
 ## Platform Notes
 
