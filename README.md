@@ -52,8 +52,11 @@ println!("Element count: {}", tensor.element_count());
 println!("Rank: {}", tensor.rank());
 
 // Zero-copy bytes when possible (little-endian)
-let raw_bytes: &[u8] = tensor.bytes()?;             // borrowed; zero-copy where feasible
-let owned_bytes: Box<[u8]> = tensor.clone_bytes()?; // owned copy
+let raw_bytes: &[u8] = tensor.bytes()?;              // borrowed; zero-copy where feasible
+let cloned_bytes: Box<[u8]> = tensor.clone_bytes()?; // cloned copy
+
+// Consume the tensor and return owned bytes (Box<[u8]>) — zero-copy when possible
+let owned_bytes: Box<[u8]> = tensor.into_bytes()?;
 
 // Copy/interpret into a typed buffer (little-endian)
 let as_f32: Box<[f32]> = tensor.copy_data_as::<f32>()?;
