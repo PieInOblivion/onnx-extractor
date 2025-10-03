@@ -96,7 +96,7 @@ impl OnnxModel {
                 let name = value_info.name.clone().unwrap_or_default();
                 if !name.is_empty() {
                     let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
-                    onnx_model.tensors.insert(name, onnx_tensor);
+                    onnx_model.tensors.entry(name).or_insert(onnx_tensor);
                 }
             }
         }
@@ -110,7 +110,7 @@ impl OnnxModel {
                 let name = input.name.clone().unwrap_or_default();
                 if !name.is_empty() {
                     let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
-                    onnx_model.tensors.insert(name, onnx_tensor);
+                    onnx_model.tensors.entry(name).or_insert(onnx_tensor);
                 }
             }
         }
@@ -124,7 +124,7 @@ impl OnnxModel {
                 let name = output.name.clone().unwrap_or_default();
                 if !name.is_empty() {
                     let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
-                    onnx_model.tensors.insert(name, onnx_tensor);
+                    onnx_model.tensors.entry(name).or_insert(onnx_tensor);
                 }
             }
         }
