@@ -69,7 +69,7 @@ pub enum AttributeValue {
     Int(i64),
     Float(f32),
     String(String),
-    Tensor(OnnxTensor),
+    Tensor(Box<OnnxTensor>),
     Ints(Vec<i64>),
     Floats(Vec<f32>),
     Strings(Vec<String>),
@@ -103,7 +103,7 @@ impl AttributeValue {
     /// Try to get tensor value
     pub fn as_tensor(&self) -> Option<&OnnxTensor> {
         match self {
-            AttributeValue::Tensor(t) => Some(t),
+            AttributeValue::Tensor(t) => Some(t.as_ref()),
             _ => None,
         }
     }

@@ -59,7 +59,7 @@ pub(crate) fn parse_attribute_proto(mut attr: AttributeProto) -> Result<Attribut
         4 => {
             if let Some(tensor) = attr.t.take() {
                 let onnx_tensor = tensor_from_proto(tensor)?;
-                Ok(AttributeValue::Tensor(onnx_tensor))
+                Ok(AttributeValue::Tensor(Box::new(onnx_tensor)))
             } else {
                 Err(Error::MissingField("tensor attribute data".to_string()))
             }

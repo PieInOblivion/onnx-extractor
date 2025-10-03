@@ -82,10 +82,10 @@ impl OnnxTensor {
             .as_ref()
             .ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
 
-        if let Some(raw) = &t.raw_data {
-            if !raw.is_empty() {
-                return Ok(raw.as_ref());
-            }
+        if let Some(raw) = &t.raw_data
+            && !raw.is_empty()
+        {
+            return Ok(raw.as_ref());
         }
 
         let bytes_opt: Option<&[u8]> = match storage_backing(self.data_type) {
@@ -131,10 +131,10 @@ impl OnnxTensor {
             .as_mut()
             .ok_or_else(|| Error::MissingField("tensor data".to_string()))?;
 
-        if let Some(raw) = t.raw_data.take() {
-            if !raw.is_empty() {
-                return Ok(raw.to_vec().into_boxed_slice());
-            }
+        if let Some(raw) = t.raw_data.take()
+            && !raw.is_empty()
+        {
+            return Ok(raw.to_vec().into_boxed_slice());
         }
 
         let bytes_opt: Option<Box<[u8]>> = match storage_backing(self.data_type) {
@@ -308,12 +308,7 @@ fn concat_strings_to_boxed_bytes(parts: &[Bytes]) -> Box<[u8]> {
 }
 
 fn slice_bytes_as<T: Copy>(slice: &[T]) -> &[u8] {
-    unsafe {
-        slice::from_raw_parts(
-            slice.as_ptr() as *const u8,
-            slice.len() * mem::size_of::<T>(),
-        )
-    }
+    unsafe { slice::from_raw_parts(slice.as_ptr() as *const u8, mem::size_of_val(slice)) }
 }
 
 fn into_box<T: Copy>(v: Vec<T>) -> Box<[u8]> {

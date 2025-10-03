@@ -56,10 +56,10 @@ impl OnnxModel {
         // collect initialiser names first
         let mut initializer_names = HashSet::new();
         for tensor in &graph.initializer {
-            if let Some(name) = &tensor.name {
-                if !name.is_empty() {
-                    initializer_names.insert(name.as_str());
-                }
+            if let Some(name) = &tensor.name
+                && !name.is_empty()
+            {
+                initializer_names.insert(name.as_str());
             }
         }
 
