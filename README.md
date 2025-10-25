@@ -12,7 +12,7 @@ let model = OnnxModel::load_from_file("model.onnx")?;
 
 // Load from bytes
 let bytes = std::fs::read("model.onnx")?;
-let model = OnnxModel::load_from_bytes(&bytes)?;
+let model = OnnxModel::load_from_bytes(bytes)?;
 ```
 
 ## Model Functions

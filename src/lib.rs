@@ -7,10 +7,15 @@
 //! - Operation details (inputs, outputs, attributes)
 //! - Model structure (inputs, outputs, graph topology)
 //!
-//! Zero-copy: `OnnxTensor::bytes()` borrows directly from the underlying
-//! protobuf storage (`raw_data`, typed data fields). The only exception is
-//! string tensors, where we concatenate entries into a contiguous cached
-//! byte buffer for convenience.
+//! ## Zero-Copy Design
+//!
+//! `OnnxTensor::data()` borrows tensor data without copying the underlying bytes.
+//! Raw and Strings variants increment Arc refcounts, Numeric borrows directly.
+//!
+//! `OnnxTensor::into_data()` returns owned data:
+//! - Raw returns Arc-backed bytes
+//! - Numeric performs zero-copy reinterpretation from typed fields
+//! - Strings returns Arc-backed elements
 //!
 //! Endianness: Multi-byte interpretations assume little-endian platforms.
 //!
@@ -24,7 +29,7 @@
 //!
 //! // Access tensor information
 //! if let Some(tensor) = model.get_tensor("input") {
-//!     println!("Input shape: {:?}", tensor.shape);
+//!     println!("Input shape: {:?}", tensor.shape());
 //! }
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
@@ -49,5 +54,5 @@ pub mod types;
 pub use error::Error;
 pub use model::OnnxModel;
 pub use operation::OnnxOperation;
-pub use tensor::OnnxTensor;
+pub use tensor::{OnnxTensor, TensorData};
 pub use types::{AttributeValue, DataType};

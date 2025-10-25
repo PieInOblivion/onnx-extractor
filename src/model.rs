@@ -1,4 +1,5 @@
 use prost::Message;
+use prost::bytes::Bytes;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::Read;
@@ -22,12 +23,12 @@ impl OnnxModel {
         let mut file = File::open(path)?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
-        Self::load_from_bytes(&buffer)
+        Self::load_from_bytes(buffer)
     }
 
-    /// Load ONNX model from byte slice
-    pub fn load_from_bytes(data: &[u8]) -> Result<Self, Error> {
-        let model = ModelProto::decode(data)?;
+    /// Load ONNX model from owned byte vector
+    pub fn load_from_bytes(data: Vec<u8>) -> Result<Self, Error> {
+        let model = ModelProto::decode(Bytes::from(data))?;
         let mut graph = model
             .graph
             .ok_or_else(|| Error::InvalidModel("No graph found in model".to_string()))?;
@@ -59,14 +60,14 @@ impl OnnxModel {
             if let Some(name) = &tensor.name
                 && !name.is_empty()
             {
-                initializer_names.insert(name.as_str());
+                initializer_names.insert(name.clone());
             }
         }
 
         // extract input names (excluding initialisers)
         for input in &graph.input {
             let name = input.name.clone().unwrap_or_default();
-            if !name.is_empty() && !initializer_names.contains(name.as_str()) {
+            if !name.is_empty() && !initializer_names.contains(&name) {
                 onnx_model.inputs.push(name);
             }
         }
@@ -204,7 +205,7 @@ impl OnnxModel {
     pub fn get_weight_tensors(&self) -> Vec<&OnnxTensor> {
         self.tensors
             .values()
-            .filter(|tensor| tensor.has_data())
+            .filter(|tensor| tensor.data().is_ok())
             .collect()
     }
 
@@ -445,9 +446,13 @@ impl OnnxModel {
             println!(
                 "  {}: {:?} ({:?}) [{}{}]",
                 name,
-                tensor.shape,
-                tensor.data_type,
-                if tensor.has_data() { "data" } else { "no data" },
+                tensor.shape(),
+                tensor.data_type(),
+                if tensor.data().is_ok() {
+                    "data"
+                } else {
+                    "no data"
+                },
                 if self.inputs.contains(name) {
                     ", input"
                 } else if self.outputs.contains(name) {

@@ -113,8 +113,8 @@ fn test_get_raw_data() {
     );
 
     let first = weights[0];
-    let raw = first.bytes().expect("get_raw_data should return bytes");
-    assert!(!raw.is_empty(), "raw data should be non-empty");
+    let data_ref = first.data().expect("data() should return tensor data");
+    assert!(!data_ref.is_empty(), "tensor data should be non-empty");
 }
 
 #[test]
@@ -127,7 +127,7 @@ fn test_no_data_tensors_report_no_data() {
         .expect("ReLU114_Output_0 tensor should exist");
 
     assert!(
-        tensor.bytes().is_err(),
-        "ReLU114_Output_0 should not have embedded data and bytes() must error"
+        tensor.data().is_err(),
+        "ReLU114_Output_0 should not have embedded data and data() must error"
     );
 }
