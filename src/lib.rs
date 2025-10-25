@@ -54,5 +54,6 @@ pub mod types;
 pub use error::Error;
 pub use model::OnnxModel;
 pub use operation::OnnxOperation;
+pub use prost::bytes::Bytes;
 pub use tensor::{OnnxTensor, TensorData};
 pub use types::{AttributeValue, DataType};
