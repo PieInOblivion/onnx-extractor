@@ -1,8 +1,10 @@
+use crate::external_data::{ExternalDataInfo, ExternalDataLoader};
+use crate::tensor::TensorDataLocation;
 use crate::{
     AttributeProto, AttributeValue, DataType, Error, NodeProto, OnnxOperation, OnnxTensor,
     TensorProto,
 };
-use std::{collections::HashMap, mem};
+use std::{collections::HashMap, mem, rc::Rc};
 
 /// Centralised adapter functions that translate generated protobuf types into
 /// crate-native types. Keep all direct proto-field usage here so future changes
@@ -13,12 +15,48 @@ use std::{collections::HashMap, mem};
 /// `drain/take` where appropriate.
 ///
 /// Create OnnxTensor from ONNX TensorProto
-pub(crate) fn tensor_from_proto(tensor: TensorProto) -> Result<OnnxTensor, Error> {
+pub(crate) fn tensor_from_proto(
+    tensor: TensorProto,
+    external_data_loader: Option<Rc<ExternalDataLoader>>,
+) -> Result<OnnxTensor, Error> {
     let shape: Vec<i64> = tensor.dims.clone();
     let data_type = DataType::from_onnx_type(tensor.data_type.unwrap_or(0));
     let name = tensor.name.clone().unwrap_or_default();
 
-    Ok(OnnxTensor::new(name, shape, data_type, Some(tensor)))
+    // Determine data location (internal vs external)
+    let data_location = if !tensor.external_data.is_empty() {
+        // Tensor has external data
+        if let Some(loader) = external_data_loader {
+            let external_info =
+                ExternalDataInfo::from_key_value_pairs(&tensor.external_data, loader)?;
+            Some(TensorDataLocation::External(external_info))
+        } else {
+            return Err(Error::InvalidModel(
+                "Tensor has external data but no external data loader was provided".to_string(),
+            ));
+        }
+    } else if tensor.raw_data.is_some()
+        || !tensor.float_data.is_empty()
+        || !tensor.double_data.is_empty()
+        || !tensor.int32_data.is_empty()
+        || !tensor.int64_data.is_empty()
+        || !tensor.uint64_data.is_empty()
+        || !tensor.string_data.is_empty()
+    {
+        // Tensor has internal data
+        Some(TensorDataLocation::Internal)
+    } else {
+        // Tensor has no data (e.g., graph inputs/outputs)
+        None
+    };
+
+    Ok(OnnxTensor::new(
+        name,
+        shape,
+        data_type,
+        Some(tensor),
+        data_location,
+    ))
 }
 
 /// Create OnnxOperation from ONNX NodeProto
@@ -58,7 +96,8 @@ pub(crate) fn parse_attribute_proto(mut attr: AttributeProto) -> Result<Attribut
         }
         4 => {
             if let Some(tensor) = attr.t.take() {
-                let onnx_tensor = tensor_from_proto(tensor)?;
+                // Note: Tensor attributes don't have external data loader since they're inline
+                let onnx_tensor = tensor_from_proto(tensor, None)?;
                 Ok(AttributeValue::Tensor(Box::new(onnx_tensor)))
             } else {
                 Err(Error::MissingField("tensor attribute data".to_string()))

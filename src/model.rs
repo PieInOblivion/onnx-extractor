@@ -3,7 +3,10 @@ use prost::bytes::Bytes;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
+use crate::external_data::ExternalDataLoader;
 use crate::{Error, ModelProto, OnnxOperation, OnnxTensor, proto_adapter, type_proto};
 
 /// Main ONNX model container
@@ -23,15 +26,31 @@ impl OnnxModel {
         let mut file = File::open(path)?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
-        Self::load_from_bytes(buffer)
+
+        // Extract model directory for external data loading
+        let model_dir = Path::new(path)
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+        Self::load_from_bytes_with_dir(buffer, Some(model_dir))
     }
 
     /// Load ONNX model from owned byte vector
     pub fn load_from_bytes(data: Vec<u8>) -> Result<Self, Error> {
+        Self::load_from_bytes_with_dir(data, None)
+    }
+
+    /// Load ONNX model from owned byte vector with optional model directory for external data
+    fn load_from_bytes_with_dir(data: Vec<u8>, model_dir: Option<PathBuf>) -> Result<Self, Error> {
         let model = ModelProto::decode(Bytes::from(data))?;
         let mut graph = model
             .graph
             .ok_or_else(|| Error::InvalidModel("No graph found in model".to_string()))?;
+
+        // Create external data loader if model directory is available
+        // Tensors keep the loader alive via Rc as long as they need it
+        let external_data_loader = model_dir.map(|dir| Rc::new(ExternalDataLoader::new(dir)));
 
         let mut onnx_model = OnnxModel {
             tensors: HashMap::new(),
@@ -82,7 +101,8 @@ impl OnnxModel {
         // parse initialiser tensors (weights/constants) by draining to avoid clones
         for tensor in graph.initializer.drain(..) {
             let tensor_name = tensor.name.clone().unwrap_or_default();
-            let onnx_tensor = proto_adapter::tensor_from_proto(tensor)?;
+            let onnx_tensor =
+                proto_adapter::tensor_from_proto(tensor, external_data_loader.clone())?;
             if !tensor_name.is_empty() {
                 onnx_model.tensors.insert(tensor_name, onnx_tensor);
             }

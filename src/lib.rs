@@ -46,6 +46,7 @@ pub(crate) mod proto_adapter;
 pub(crate) use onnx_generated::*;
 
 pub mod error;
+pub mod external_data;
 pub mod model;
 pub mod operation;
 pub mod tensor;

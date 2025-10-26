@@ -4,8 +4,17 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use std::{any, mem, ptr, slice};
 
 use crate::{
-    DataType, Error, TensorProto, tensor_shape_proto::dimension::Value, type_proto::Tensor,
+    DataType, Error, TensorProto, external_data::ExternalDataInfo,
+    tensor_shape_proto::dimension::Value, type_proto::Tensor,
 };
+
+#[derive(Debug, Clone)]
+pub(crate) enum TensorDataLocation {
+    /// Data is stored internally in the protobuf (raw_data or typed fields)
+    Internal,
+    /// Data is stored in an external file
+    External(ExternalDataInfo),
+}
 
 /// Zero-copy tensor data
 #[derive(Debug, Clone)]
@@ -93,6 +102,7 @@ pub struct OnnxTensor {
     shape: Vec<i64>,
     data_type: DataType,
     proto: Option<TensorProto>,
+    data_location: Option<TensorDataLocation>,
 }
 
 impl OnnxTensor {
@@ -101,12 +111,14 @@ impl OnnxTensor {
         shape: Vec<i64>,
         data_type: DataType,
         proto: Option<TensorProto>,
+        data_location: Option<TensorDataLocation>,
     ) -> Self {
         OnnxTensor {
             name,
             shape,
             data_type,
             proto,
+            data_location,
         }
     }
 
@@ -153,6 +165,7 @@ impl OnnxTensor {
             shape,
             DataType::from_onnx_type(elem_type),
             None,
+            None,
         ))
     }
 
@@ -160,8 +173,16 @@ impl OnnxTensor {
     ///
     /// Raw and Strings variants clone Arc pointers only, Numeric borrows directly.
     /// Call into_owned on the result to detach from tensor lifetime.
+    /// For external data, this lazily loads the data from the external file.
     #[inline]
     pub fn data(&self) -> Result<TensorData<'_>, Error> {
+        // Check if data is stored externally
+        if let Some(TensorDataLocation::External(ref external_info)) = self.data_location {
+            let data = external_info.load_data()?;
+            return Ok(TensorData::Raw(data));
+        }
+
+        // Internal data
         let t = self
             .proto
             .as_ref()
@@ -213,8 +234,16 @@ impl OnnxTensor {
     ///
     /// All variants returned with no borrowed references.
     /// Numeric performs zero-copy reinterpretation from typed fields.
+    /// For external data, this lazily loads the data from the external file.
     #[inline]
     pub fn into_data(mut self) -> Result<TensorData<'static>, Error> {
+        // Check if data is stored externally
+        if let Some(TensorDataLocation::External(ref external_info)) = self.data_location {
+            let data = external_info.load_data()?;
+            return Ok(TensorData::Raw(data));
+        }
+
+        // Internal data
         let t = self
             .proto
             .as_mut()
