@@ -1,6 +1,6 @@
 # onnx-extractor
 
-A tiny, lightweight ONNX model parser for extracting tensor shapes, operations, and raw data.
+A tiny, lightweight ONNX model parser for extracting tensor shapes, operations, and raw data with zero-copy and external data loading support.
 
 ## Model Loading
 
@@ -46,30 +46,40 @@ let exec_order = model.execution_order()?;
 let tensor = model.get_tensor("weight").unwrap();
 
 // Shape and type info
-println!("Shape: {:?}", tensor.shape);
-println!("Data type: {:?}", tensor.data_type);
-println!("Element count: {}", tensor.element_count());
-println!("Rank: {}", tensor.rank());
+println!("Name: {}", tensor.name());
+println!("Shape: {:?}", tensor.shape());
+println!("Data type: {:?}", tensor.data_type());
 
-// Zero-copy bytes when possible (little-endian)
-let raw_bytes: &[u8] = tensor.bytes()?;              // borrowed; zero-copy where feasible
-let cloned_bytes: Box<[u8]> = tensor.clone_bytes()?; // cloned copy
+// Borrow tensor data
+let tensor_data = tensor.data()?;
+println!("Data size: {} bytes", tensor_data.len());
 
-// Consume the tensor and return owned bytes (Box<[u8]>) — zero-copy when possible
-let owned_bytes: Box<[u8]> = tensor.into_bytes()?;
+// Get data as byte slice
+let bytes: Cow<'_, [u8]> = tensor_data.as_slice();
 
-// Copy/interpret into a typed buffer (little-endian)
+// Consume tensor and get owned data zero-copy
+let owned_data = tensor.into_data()?;
+
+// Copy/interpret data as typed buffer (little-endian)
 let as_f32: Box<[f32]> = tensor.copy_data_as::<f32>()?;
 let as_f64: Box<[f64]> = tensor.copy_data_as::<f64>()?;
 let as_i32: Box<[i32]> = tensor.copy_data_as::<i32>()?;
 let as_u8: Box<[u8]> = tensor.copy_data_as::<u8>()?;
+```
 
-// Properties
-let has_data = tensor.has_data();
-let size_bytes = tensor.data_size_bytes();
-let is_scalar = tensor.is_scalar();
-let is_vector = tensor.is_vector();
-let has_dynamic = tensor.has_dynamic_shape();
+### TensorData Variants
+
+The `data()` and `into_data()` methods return a `TensorData` enum:
+
+```rust
+pub enum TensorData<'a> {
+    /// Contiguous buffer from raw_data field, Arc-backed
+    Raw(Bytes),
+    /// Reinterpreted numeric data from typed fields
+    Numeric(Cow<'a, [u8]>),
+    /// String tensor elements, each Arc-backed
+    Strings(Vec<Bytes>),
+}
 ```
 
 ## Operation Functions
@@ -117,18 +127,42 @@ let is_float = tensor.data_type.is_float();
 let is_int = tensor.data_type.is_integer();
 ```
 
+## External Data Support
+
+ONNX models can store large tensor data in external files. This crate supports lazy loading of external data with automatic caching:
+
+```rust
+// Load model with external data files
+let model = OnnxModel::load_from_file("large_model.onnx")?;
+
+// External data files (e.g., "large_model.onnx.data") are automatically discovered
+// and loaded lazily when tensor data is accessed
+
+let tensor = model.get_tensor("large_weight").unwrap();
+
+// Data is loaded from external file on first access and cached for subsequent use
+let data = tensor.data()?;
+println!("Loaded {} bytes from external file", data.len());
+
+// Multiple tensors can share the same external file efficiently
+// The file is only loaded once and cached
+```
+
+### External Data Features
+
+- **Lazy Loading**: External files are only loaded when tensor data is accessed
+- **Shared Caching**: Multiple tensors sharing the same external file benefit from caching
+- **Offset & Length**: Supports reading specific ranges from large external files
+- **Zero-Copy**: External data is stored as `Bytes` (Arc-backed) for cheap cloning
+
 ## About the protobuf (`onnx.proto`)
 
 This crate generates Rust types from the ONNX protobuf at build time using `prost-build`.
 
-Notes:
-- Data is returned zero-copy for numeric and raw-data fields. String tensors are handled specially by concatenating their bytes into a cached contiguous buffer.
-
 ## Platform Notes
 
-- Byte and typed views assume little-endian platforms (most common: x86, x64, ARM)
+- Byte and typed views assume little-endian platforms
 - Raw tensor data follows the ONNX specification (IEEE 754 for floats, little-endian integers)
-- Multi-byte types may return incorrect values on big-endian platforms
 
 ## License
 
