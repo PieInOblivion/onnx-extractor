@@ -16,12 +16,12 @@ use std::{collections::HashMap, mem, rc::Rc};
 ///
 /// Create OnnxTensor from ONNX TensorProto
 pub(crate) fn tensor_from_proto(
-    tensor: TensorProto,
+    mut tensor: TensorProto,
     external_data_loader: Option<Rc<ExternalDataLoader>>,
 ) -> Result<OnnxTensor, Error> {
-    let shape: Vec<i64> = tensor.dims.clone();
+    let shape: Vec<i64> = std::mem::take(&mut tensor.dims);
     let data_type = DataType::from_onnx_type(tensor.data_type.unwrap_or(0));
-    let name = tensor.name.clone().unwrap_or_default();
+    let name = tensor.name.take().unwrap_or_default();
 
     // Determine data location (internal vs external)
     let data_location = if !tensor.external_data.is_empty() {
@@ -63,8 +63,8 @@ pub(crate) fn tensor_from_proto(
 pub(crate) fn operation_from_node_proto(mut node: NodeProto) -> Result<OnnxOperation, Error> {
     let mut attributes = HashMap::new();
 
-    for attr in node.attribute.drain(..) {
-        let attr_name = attr.name.clone().unwrap_or_default();
+    for mut attr in node.attribute.drain(..) {
+        let attr_name = attr.name.take().unwrap_or_default();
         let value = parse_attribute_proto(attr)?;
         if !attr_name.is_empty() {
             attributes.insert(attr_name, value);

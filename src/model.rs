@@ -73,62 +73,44 @@ impl OnnxModel {
         onnx_model.inputs.reserve(graph.input.len());
         onnx_model.outputs.reserve(graph.output.len());
 
-        // collect initialiser names first
-        let mut initializer_names = HashSet::new();
-        for tensor in &graph.initializer {
-            if let Some(name) = &tensor.name
-                && !name.is_empty()
-            {
-                initializer_names.insert(name.clone());
-            }
-        }
-
-        // extract input names (excluding initialisers)
-        for input in &graph.input {
-            let name = input.name.clone().unwrap_or_default();
-            if !name.is_empty() && !initializer_names.contains(&name) {
-                onnx_model.inputs.push(name);
-            }
-        }
-
-        // extract output names
-        for output in &graph.output {
-            onnx_model
-                .outputs
-                .push(output.name.clone().unwrap_or_default());
-        }
-
         // parse initialiser tensors (weights/constants) by draining to avoid clones
         for tensor in graph.initializer.drain(..) {
-            let tensor_name = tensor.name.clone().unwrap_or_default();
             let onnx_tensor =
                 proto_adapter::tensor_from_proto(tensor, external_data_loader.clone())?;
+            let tensor_name = onnx_tensor.name().to_string();
             if !tensor_name.is_empty() {
                 onnx_model.tensors.insert(tensor_name, onnx_tensor);
             }
         }
 
-        // parse value_info for intermediate tensor shapes and types
-        for value_info in &graph.value_info {
-            if let Some(t) = &value_info.r#type
-                && let Some(type_proto_value) = &t.value
-                && let type_proto::Value::TensorType(tensor_type) = type_proto_value
-            {
-                let name = value_info.name.clone().unwrap_or_default();
-                if !name.is_empty() {
-                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
-                    onnx_model.tensors.entry(name).or_insert(onnx_tensor);
-                }
+        // parse input tensor info and extract input names
+        for input in graph.input.drain(..) {
+            let name = input.name.clone().unwrap_or_default();
+            if name.is_empty() {
+                continue;
             }
-        }
 
-        // parse input tensor info
-        for input in &graph.input {
+            // If the name is already in tensors, it's an initialiser, so we skip adding it to inputs
+            if !onnx_model.tensors.contains_key(&name) {
+                onnx_model.inputs.push(name.clone());
+            }
+
             if let Some(t) = &input.r#type
                 && let Some(type_proto_value) = &t.value
                 && let type_proto::Value::TensorType(tensor_type) = type_proto_value
             {
-                let name = input.name.clone().unwrap_or_default();
+                let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
+                onnx_model.tensors.entry(name).or_insert(onnx_tensor);
+            }
+        }
+
+        // parse value_info for intermediate tensor shapes and types
+        for value_info in graph.value_info.drain(..) {
+            if let Some(t) = &value_info.r#type
+                && let Some(type_proto_value) = &t.value
+                && let type_proto::Value::TensorType(tensor_type) = type_proto_value
+            {
+                let name = value_info.name.unwrap_or_default();
                 if !name.is_empty() {
                     let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
                     onnx_model.tensors.entry(name).or_insert(onnx_tensor);
@@ -136,17 +118,21 @@ impl OnnxModel {
             }
         }
 
-        // parse output tensor info
-        for output in &graph.output {
+        // parse output tensor info and extract output names
+        for output in graph.output.drain(..) {
+            let name = output.name.clone().unwrap_or_default();
+            if name.is_empty() {
+                continue;
+            }
+
+            onnx_model.outputs.push(name.clone());
+
             if let Some(t) = &output.r#type
                 && let Some(type_proto_value) = &t.value
                 && let type_proto::Value::TensorType(tensor_type) = type_proto_value
             {
-                let name = output.name.clone().unwrap_or_default();
-                if !name.is_empty() {
-                    let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
-                    onnx_model.tensors.entry(name).or_insert(onnx_tensor);
-                }
+                let onnx_tensor = OnnxTensor::from_tensor_type(name.clone(), tensor_type)?;
+                onnx_model.tensors.entry(name).or_insert(onnx_tensor);
             }
         }
 
