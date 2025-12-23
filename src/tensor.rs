@@ -358,9 +358,11 @@ fn storage_backing(dt: DataType) -> Option<StorageBacking> {
         | DataType::Int16
         | DataType::Int8
         | DataType::Int4
+        | DataType::Int2
         | DataType::Uint16
         | DataType::Uint8
         | DataType::Uint4
+        | DataType::Uint2
         | DataType::Bool
         | DataType::Float16
         | DataType::Bfloat16

@@ -12,18 +12,23 @@ impl DataType {
     /// Get the size in bytes for numeric types
     pub fn size_in_bytes(&self) -> Option<usize> {
         match self {
-            DataType::Float | DataType::Int32 | DataType::Uint32 => Some(4),
-            DataType::Double | DataType::Int64 | DataType::Uint64 => Some(8),
-            DataType::Float16 | DataType::Bfloat16 | DataType::Int16 | DataType::Uint16 => Some(2),
-            DataType::Int8 | DataType::Uint8 | DataType::Bool => Some(1),
-            DataType::Complex64 => Some(8),
             DataType::Complex128 => Some(16),
-            DataType::Float8e4m3fn
+            DataType::Double | DataType::Int64 | DataType::Uint64 | DataType::Complex64 => Some(8),
+            DataType::Float | DataType::Int32 | DataType::Uint32 => Some(4),
+            DataType::Float16 | DataType::Bfloat16 | DataType::Int16 | DataType::Uint16 => Some(2),
+            DataType::Int8
+            | DataType::Uint8
+            | DataType::Bool
+            | DataType::Float8e4m3fn
             | DataType::Float8e4m3fnuz
             | DataType::Float8e5m2
             | DataType::Float8e5m2fnuz
-            | DataType::Float8e8m0 => Some(1),
-            DataType::Uint4 | DataType::Int4 | DataType::Float4e2m1 => Some(1),
+            | DataType::Float8e8m0
+            | DataType::Uint4
+            | DataType::Int4
+            | DataType::Float4e2m1
+            | DataType::Uint2
+            | DataType::Int2 => Some(1),
             DataType::String | DataType::Undefined => None,
         }
     }
@@ -59,6 +64,8 @@ impl DataType {
                 | DataType::Uint64
                 | DataType::Uint4
                 | DataType::Int4
+                | DataType::Uint2
+                | DataType::Int2
         )
     }
 }
