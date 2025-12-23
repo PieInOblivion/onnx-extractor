@@ -94,13 +94,13 @@ impl ExternalDataLoader {
         // File not cached
         let file_data = self.load_file(&file_path)?;
 
+        let slice = self.slice_data(&file_data, info)?;
+
         // Cache the entire file
         let mut cache = self.cache.borrow_mut();
-        cache.insert(info.location.clone(), file_data.clone());
-        drop(cache);
+        cache.insert(info.location.clone(), file_data);
 
-        // Return the requested slice
-        self.slice_data(&file_data, info)
+        Ok(slice)
     }
 
     /// Load entire file into memory as Bytes
