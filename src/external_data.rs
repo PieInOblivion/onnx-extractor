@@ -6,7 +6,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::Error;
+use crate::{Error, StringStringEntryProto};
 
 /// Metadata for external tensor data
 #[derive(Debug, Clone)]
@@ -20,7 +20,7 @@ pub(crate) struct ExternalDataInfo {
 impl ExternalDataInfo {
     /// Parse external data info from key-value pairs
     pub fn from_key_value_pairs(
-        pairs: &[crate::StringStringEntryProto],
+        pairs: &[StringStringEntryProto],
         loader: Rc<ExternalDataLoader>,
     ) -> Result<Self, Error> {
         let mut location: Option<String> = None;
